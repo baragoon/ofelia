@@ -46,7 +46,7 @@ jobs:
         with:
           username: mcuadros
           # Replace with below once @mcuadros adds the DOCKER_USERNAME secret
-          # username: ${{ secrets.DOCKER_USERNAME }}
+          username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Login to GHCR
