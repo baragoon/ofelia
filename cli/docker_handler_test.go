@@ -8,7 +8,7 @@ import (
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/testing"
-	"github.com/mcuadros/ofelia/core"
+	"github.com/baragoon/ofelia/core"
 	check "gopkg.in/check.v1"
 )
 
@@ -28,7 +28,7 @@ func buildFromDockerLabels(dockerFilters ...string) (*Config, error) {
 	}
 
 	var err error
-	c.dockerHandler, err = NewDockerHandler(c, dockerFilters, true, mockLogger)
+	c.dockerHandler, err = NewDockerHandler(c, dockerFilters, true, mockLogger, DockerConnectionOptions{})
 	if err != nil {
 		return nil, err
 	}

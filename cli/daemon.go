@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mcuadros/ofelia/core"
+	"github.com/baragoon/ofelia/core"
 )
 
 // DaemonCommand daemon process
@@ -14,6 +14,12 @@ type DaemonCommand struct {
 	ConfigFile        string   `long:"config" description:"configuration file" default:"/etc/ofelia.conf"`
 	DockerLabelConfig bool     `short:"d" long:"docker" description:"continiously poll docker labels for configurations"`
 	DockerFilters     []string `short:"f" long:"docker-filter" description:"filter to select docker containers. https://docs.docker.com/reference/cli/docker/container/ls/#filter"`
+	DockerHosts       []string `long:"docker-host" description:"docker host endpoint. Can be provided multiple times to schedule docker jobs on all hosts (e.g. tcp://host:2376)"`
+	DockerTLSVerify   bool     `long:"docker-tls-verify" description:"enable TLS verification for --docker-host connections"`
+	DockerCertPath    string   `long:"docker-cert-path" description:"path to docker TLS certs directory (contains ca.pem, cert.pem, key.pem)"`
+	DockerCACert      string   `long:"docker-ca-cert" description:"path to CA certificate PEM file for docker TLS"`
+	DockerCert        string   `long:"docker-cert" description:"path to client certificate PEM file for docker TLS"`
+	DockerKey         string   `long:"docker-key" description:"path to client key PEM file for docker TLS"`
 	scheduler         *core.Scheduler
 	signals           chan os.Signal
 	done              chan bool
@@ -59,7 +65,14 @@ func (c *DaemonCommand) boot() (err error) {
 	config.sh = scheduler
 	config.buildSchedulerMiddlewares(scheduler)
 
-	config.dockerHandler, err = NewDockerHandler(config, c.DockerFilters, c.DockerLabelConfig, c.Logger)
+	config.dockerHandler, err = NewDockerHandler(config, c.DockerFilters, c.DockerLabelConfig, c.Logger, DockerConnectionOptions{
+		Hosts:      c.DockerHosts,
+		TLSVerify:  c.DockerTLSVerify,
+		CertPath:   c.DockerCertPath,
+		CACertFile: c.DockerCACert,
+		CertFile:   c.DockerCert,
+		KeyFile:    c.DockerKey,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create docker handler: %w", err)
 	}

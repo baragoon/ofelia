@@ -2,12 +2,12 @@ FROM golang:1.26-alpine AS builder
 
 RUN apk --no-cache add gcc musl-dev
 
-WORKDIR ${GOPATH}/src/github.com/mcuadros/ofelia
+WORKDIR ${GOPATH}/src/github.com/baragoon/ofelia
 
-COPY go.mod go.sum ${GOPATH}/src/github.com/mcuadros/ofelia/
+COPY go.mod go.sum ${GOPATH}/src/github.com/baragoon/ofelia/
 RUN go mod download
 
-COPY . ${GOPATH}/src/github.com/mcuadros/ofelia/
+COPY . ${GOPATH}/src/github.com/baragoon/ofelia/
 
 RUN go build -o /go/bin/ofelia .
 

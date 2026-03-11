@@ -1,0 +1,134 @@
+name: Manual Multi-Host Pinned Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  multi_host_pinned_jobs:
+    name: Multi-host pinned jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up TLS Docker hosts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker network create ofelia-tls-net >/dev/null 2>&1 || true
+          docker volume create dind-certs >/dev/null
+
+          docker rm -f dind1 dind2 ofelia-pinned >/dev/null 2>&1 || true
+
+          docker run -d \
+            --privileged \
+            --name dind1 \
+            --network ofelia-tls-net \
+            -e DOCKER_TLS_CERTDIR=/certs \
+            -e DOCKER_TLS_SAN=DNS:dind1,DNS:dind2 \
+            -v dind-certs:/certs \
+            docker:29-dind
+
+          docker run -d \
+            --privileged \
+            --name dind2 \
+            --network ofelia-tls-net \
+            -e DOCKER_TLS_CERTDIR=/certs \
+            -e DOCKER_TLS_SAN=DNS:dind1,DNS:dind2 \
+            -v dind-certs:/certs \
+            docker:29-dind
+
+          sleep 10
+
+      - name: Seed per-host exec targets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --network ofelia-tls-net \
+            -v dind-certs:/certs \
+            docker:29-cli \
+            sh -lc '
+              set -e
+              for host in dind1 dind2; do
+                export DOCKER_HOST=tcp://$host:2376
+                export DOCKER_TLS_VERIFY=1
+                export DOCKER_CERT_PATH=/certs/client
+
+                container="pin-target-$host"
+                docker rm -f "$container" >/dev/null 2>&1 || true
+                docker run -d --name "$container" alpine:3.23.3 sleep 300 >/dev/null
+                docker ps --format "{{.Names}}" | grep "$container"
+              done
+            '
+
+      - name: Create pinned config
+        shell: bash
+        run: |
+          cat > ofelia-pinned.conf <<'EOF'
+[job-exec "pin-dind1"]
+schedule = @every 5s
+container = pin-target-dind1
+command = echo pinned-dind1
+docker-host = dind1_2376
+
+[job-exec "pin-dind2"]
+schedule = @every 5s
+container = pin-target-dind2
+command = echo pinned-dind2
+docker-host = dind2_2376
+
+[job-exec "pin-mismatch"]
+schedule = @every 5s
+container = pin-target-dind1
+command = echo should-not-run-on-dind2
+docker-host = dind2_2376
+EOF
+
+      - name: Build and run Ofelia with pinned jobs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build -t ofelia-local:test .
+
+          docker run -d \
+            --name ofelia-pinned \
+            --network ofelia-tls-net \
+            -v dind-certs:/certs:ro \
+            -v "$PWD/ofelia-pinned.conf:/tmp/ofelia-pinned.conf:ro" \
+            ofelia-local:test \
+            daemon \
+            --config=/tmp/ofelia-pinned.conf \
+            --docker-host=tcp://dind1:2376 \
+            --docker-host=tcp://dind2:2376 \
+            --docker-tls-verify \
+            --docker-cert-path=/certs/client
+
+          sleep 18
+          docker logs ofelia-pinned | tee ofelia-pinned.log
+
+      - name: Assert pinned execution
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          grep -F 'New job registered "pin-dind1"' ofelia-pinned.log
+          grep -F 'New job registered "pin-dind2"' ofelia-pinned.log
+          grep -F 'New job registered "pin-mismatch"' ofelia-pinned.log
+          grep -F 'StdOut: pinned-dind1' ofelia-pinned.log
+          grep -F 'StdOut: pinned-dind2' ofelia-pinned.log
+          grep -F 'pin-mismatch' ofelia-pinned.log
+          grep -i 'no such container' ofelia-pinned.log
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker rm -f ofelia-pinned dind1 dind2 >/dev/null 2>&1 || true
+          docker network rm ofelia-tls-net >/dev/null 2>&1 || true
+          docker volume rm dind-certs >/dev/null 2>&1 || true

@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/mcuadros/ofelia/core"
+	"github.com/baragoon/ofelia/core"
 )
 
 const (
@@ -29,11 +30,22 @@ var (
 )
 
 type DockerHandler struct {
-	dockerClient      *docker.Client
+	dockerClients     map[string]*docker.Client
+	primaryDockerHost string
 	notifier          labelConfigUpdater
 	configsFromLabels bool
 	logger            core.Logger
 	filters           []string
+	connOpts          DockerConnectionOptions
+}
+
+type DockerConnectionOptions struct {
+	Hosts      []string
+	TLSVerify  bool
+	CertPath   string
+	CACertFile string
+	CertFile   string
+	KeyFile    string
 }
 
 type labelConfigUpdater interface {
@@ -42,19 +54,94 @@ type labelConfigUpdater interface {
 
 // TODO: Implement an interface so the code does not have to use third parties directly
 func (c *DockerHandler) GetInternalDockerClient() *docker.Client {
-	return c.dockerClient
-}
-
-func (c *DockerHandler) buildDockerClient() (*docker.Client, error) {
-	d, err := docker.NewClientFromEnv()
-	if err != nil {
-		return nil, err
+	if len(c.dockerClients) == 0 {
+		return nil
 	}
 
-	return d, nil
+	if d, ok := c.dockerClients[c.primaryDockerHost]; ok {
+		return d
+	}
+
+	for _, d := range c.dockerClients {
+		return d
+	}
+
+	return nil
 }
 
-func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels bool, logger core.Logger) (*DockerHandler, error) {
+func (c *DockerHandler) GetInternalDockerClients() map[string]*docker.Client {
+	return c.dockerClients
+}
+
+func (c *DockerHandler) GetPrimaryDockerHost() string {
+	return c.primaryDockerHost
+}
+
+func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, error) {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		d, err := docker.NewClientFromEnv()
+		if err != nil {
+			return nil, "", err
+		}
+
+		resolvedHost := os.Getenv("DOCKER_HOST")
+		if resolvedHost == "" {
+			resolvedHost = "default"
+		}
+
+		return d, resolvedHost, nil
+	}
+
+	ca, cert, key := c.resolveTLSFiles()
+	tlsVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
+	if tlsVerify {
+		if ca == "" || cert == "" || key == "" {
+			return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
+		}
+
+		d, err := docker.NewTLSClient(host, cert, key, ca)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return d, host, nil
+	}
+
+	d, err := docker.NewClient(host)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return d, host, nil
+}
+
+func (c *DockerHandler) resolveTLSFiles() (ca, cert, key string) {
+	certPath := c.connOpts.CertPath
+	if certPath == "" {
+		certPath = os.Getenv("DOCKER_CERT_PATH")
+	}
+
+	ca = strings.TrimSpace(c.connOpts.CACertFile)
+	cert = strings.TrimSpace(c.connOpts.CertFile)
+	key = strings.TrimSpace(c.connOpts.KeyFile)
+
+	if certPath != "" {
+		if ca == "" {
+			ca = filepath.Join(certPath, "ca.pem")
+		}
+		if cert == "" {
+			cert = filepath.Join(certPath, "cert.pem")
+		}
+		if key == "" {
+			key = filepath.Join(certPath, "key.pem")
+		}
+	}
+
+	return ca, cert, key
+}
+
+func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels bool, logger core.Logger, connOpts DockerConnectionOptions) (*DockerHandler, error) {
 	if len(dockerFilters) > 0 && !configsFromLabels {
 		return nil, fmt.Errorf("docker filters can only be provided together with '--docker' flag")
 	}
@@ -64,16 +151,30 @@ func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels 
 		configsFromLabels: configsFromLabels,
 		notifier:          config,
 		logger:            logger,
+		connOpts:          connOpts,
+		dockerClients:     make(map[string]*docker.Client),
 	}
-	var err error
-	c.dockerClient, err = c.buildDockerClient()
-	if err != nil {
-		return nil, err
+
+	hosts := connOpts.Hosts
+	if len(hosts) == 0 {
+		hosts = []string{""}
 	}
-	// Do a sanity check on docker
-	_, err = c.dockerClient.Info()
-	if err != nil {
-		return nil, err
+
+	for i, host := range hosts {
+		d, resolvedHost, err := c.buildDockerClient(host)
+		if err != nil {
+			return nil, err
+		}
+		// Do a sanity check on docker.
+		if _, err := d.Info(); err != nil {
+			return nil, err
+		}
+
+		hostKey := normalizeDockerHostKey(resolvedHost)
+		c.dockerClients[hostKey] = d
+		if i == 0 {
+			c.primaryDockerHost = hostKey
+		}
 	}
 
 	if c.configsFromLabels {
@@ -120,7 +221,11 @@ func (c *DockerHandler) WaitForLabels() {
 	}
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		_, err := c.dockerClient.InspectContainerWithOptions(docker.InspectContainerOptions{ID: id})
+		primaryClient := c.GetInternalDockerClient()
+		if primaryClient == nil {
+			return
+		}
+		_, err := primaryClient.InspectContainerWithOptions(docker.InspectContainerOptions{ID: id})
 		if err == nil {
 			c.logger.Debugf("Found ofelia container with ID: %s", id)
 			return
@@ -142,31 +247,77 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 		filters[key] = append(filters[key], value)
 	}
 
-	conts, err := c.dockerClient.ListContainers(docker.ListContainersOptions{Filters: filters})
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errFailedToListContainers, err)
-	} else if len(conts) == 0 {
-		return nil, fmt.Errorf("%w: %v", errNoContainersMatchingFilters, filters)
-	}
-
 	var labels = make(map[string]map[string]string)
+	missingHosts := 0
+	for host, dc := range c.dockerClients {
+		conts, err := dc.ListContainers(docker.ListContainersOptions{Filters: filters})
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", errFailedToListContainers, err)
+		}
 
-	for _, cont := range conts {
-		if len(cont.Names) > 0 && len(cont.Labels) > 0 {
+		if len(conts) == 0 {
+			missingHosts++
+			continue
+		}
+
+		for _, cont := range conts {
+			if len(cont.Names) == 0 || len(cont.Labels) == 0 {
+				continue
+			}
+
 			name := strings.TrimPrefix(cont.Names[0], "/")
-			for k := range cont.Labels {
-				// remove all not relevant labels
-				if !strings.HasPrefix(k, labelPrefix) {
-					delete(cont.Labels, k)
-					continue
+			filtered := make(map[string]string)
+			for k, v := range cont.Labels {
+				if strings.HasPrefix(k, labelPrefix) {
+					filtered[k] = v
 				}
 			}
 
-			labels[name] = cont.Labels
+			if len(filtered) == 0 {
+				continue
+			}
+
+			labels[makeContainerRef(host, name)] = filtered
 		}
 	}
 
+	if missingHosts == len(c.dockerClients) {
+		return nil, fmt.Errorf("%w: %v", errNoContainersMatchingFilters, filters)
+	}
+
 	return labels, nil
+}
+
+func normalizeDockerHostKey(host string) string {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return "default"
+	}
+
+	host = strings.TrimPrefix(host, "tcp://")
+	host = strings.TrimPrefix(host, "unix://")
+	host = strings.TrimPrefix(host, "npipe://")
+	host = strings.TrimSuffix(host, "/")
+	host = strings.ReplaceAll(host, "/", "_")
+	host = strings.ReplaceAll(host, ":", "_")
+	if host == "" {
+		return "default"
+	}
+
+	return host
+}
+
+func makeContainerRef(host, container string) string {
+	return fmt.Sprintf("%s|%s", host, container)
+}
+
+func splitContainerRef(ref string) (host, container string) {
+	parts := strings.SplitN(ref, "|", 2)
+	if len(parts) != 2 {
+		return "", ref
+	}
+
+	return parts[0], parts[1]
 }
 
 func parseFilter(filter string) (key, value string, err error) {
@@ -184,7 +335,8 @@ func (c *Config) buildFromDockerLabels(labels map[string]map[string]string) erro
 	serviceJobs := make(map[string]map[string]interface{})
 	globalConfigs := make(map[string]interface{})
 
-	for c, l := range labels {
+	for containerRef, l := range labels {
+		host, containerName := splitContainerRef(containerRef)
 		isServiceContainer := func() bool {
 			for k, v := range l {
 				if k == serviceLabel {
@@ -205,33 +357,46 @@ func (c *Config) buildFromDockerLabels(labels map[string]map[string]string) erro
 			}
 
 			jobType, jobName, jopParam := parts[1], parts[2], parts[3]
+			hostJobName := jobName
+			if host != "" {
+				hostJobName = fmt.Sprintf("%s::%s", host, jobName)
+			}
 			switch {
 			case jobType == jobExec: // only job exec can be provided on the non-service container
-				if _, ok := execJobs[jobName]; !ok {
-					execJobs[jobName] = make(map[string]interface{})
+				if _, ok := execJobs[hostJobName]; !ok {
+					execJobs[hostJobName] = make(map[string]interface{})
 				}
 
-				setJobParam(execJobs[jobName], jopParam, v)
+				setJobParam(execJobs[hostJobName], jopParam, v)
+				if host != "" {
+					execJobs[hostJobName]["docker-host"] = host
+				}
 				// since this label was placed not on the service container
 				// this means we need to `exec` command in this container
 				if !isServiceContainer {
-					execJobs[jobName]["container"] = c
+					execJobs[hostJobName]["container"] = containerName
 				}
 			case jobType == jobLocal && isServiceContainer:
-				if _, ok := localJobs[jobName]; !ok {
-					localJobs[jobName] = make(map[string]interface{})
+				if _, ok := localJobs[hostJobName]; !ok {
+					localJobs[hostJobName] = make(map[string]interface{})
 				}
-				setJobParam(localJobs[jobName], jopParam, v)
+				setJobParam(localJobs[hostJobName], jopParam, v)
 			case jobType == jobServiceRun && isServiceContainer:
-				if _, ok := serviceJobs[jobName]; !ok {
-					serviceJobs[jobName] = make(map[string]interface{})
+				if _, ok := serviceJobs[hostJobName]; !ok {
+					serviceJobs[hostJobName] = make(map[string]interface{})
 				}
-				setJobParam(serviceJobs[jobName], jopParam, v)
+				setJobParam(serviceJobs[hostJobName], jopParam, v)
+				if host != "" {
+					serviceJobs[hostJobName]["docker-host"] = host
+				}
 			case jobType == jobRun && isServiceContainer:
-				if _, ok := runJobs[jobName]; !ok {
-					runJobs[jobName] = make(map[string]interface{})
+				if _, ok := runJobs[hostJobName]; !ok {
+					runJobs[hostJobName] = make(map[string]interface{})
 				}
-				setJobParam(runJobs[jobName], jopParam, v)
+				setJobParam(runJobs[hostJobName], jopParam, v)
+				if host != "" {
+					runJobs[hostJobName]["docker-host"] = host
+				}
 			default:
 				// TODO: warn about unknown parameter
 			}

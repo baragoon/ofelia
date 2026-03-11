@@ -2,9 +2,11 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/mcuadros/ofelia/core"
-	"github.com/mcuadros/ofelia/middlewares"
+	"github.com/baragoon/ofelia/core"
+	"github.com/baragoon/ofelia/middlewares"
+	docker "github.com/fsouza/go-dockerclient"
 
 	defaults "github.com/mcuadros/go-defaults"
 	gcfg "gopkg.in/gcfg.v1"
@@ -87,9 +89,11 @@ func (c *Config) InitializeApp() error {
 		c.buildSchedulerMiddlewares(c.sh)
 	}
 
+	c.fanOutDockerJobs()
+
 	for name, j := range c.ExecJobs {
 		defaults.SetDefaults(j)
-		j.Client = c.dockerHandler.GetInternalDockerClient()
+		j.Client = c.resolveDockerClient(j.DockerHost)
 		j.Name = name
 		j.buildMiddlewares()
 		c.sh.AddJob(j)
@@ -97,7 +101,7 @@ func (c *Config) InitializeApp() error {
 
 	for name, j := range c.RunJobs {
 		defaults.SetDefaults(j)
-		j.Client = c.dockerHandler.GetInternalDockerClient()
+		j.Client = c.resolveDockerClient(j.DockerHost)
 		j.Name = name
 		j.buildMiddlewares()
 		c.sh.AddJob(j)
@@ -113,12 +117,174 @@ func (c *Config) InitializeApp() error {
 	for name, j := range c.ServiceJobs {
 		defaults.SetDefaults(j)
 		j.Name = name
-		j.Client = c.dockerHandler.GetInternalDockerClient()
+		j.Client = c.resolveDockerClient(j.DockerHost)
 		j.buildMiddlewares()
 		c.sh.AddJob(j)
 	}
 
 	return nil
+}
+
+func (c *Config) resolveDockerClient(host string) *docker.Client {
+	if c.dockerHandler == nil {
+		return nil
+	}
+
+	if host == "" {
+		return c.dockerHandler.GetInternalDockerClient()
+	}
+
+	if client, ok := c.dockerHandler.GetInternalDockerClients()[host]; ok {
+		return client
+	}
+
+	return c.dockerHandler.GetInternalDockerClient()
+}
+
+func (c *Config) fanOutDockerJobs() {
+	if c.dockerHandler == nil {
+		return
+	}
+
+	clients := c.dockerHandler.GetInternalDockerClients()
+	if len(clients) <= 1 {
+		for _, j := range c.ExecJobs {
+			if j.DockerHost == "" {
+				j.DockerHost = c.dockerHandler.GetPrimaryDockerHost()
+			}
+		}
+		for _, j := range c.RunJobs {
+			if j.DockerHost == "" {
+				j.DockerHost = c.dockerHandler.GetPrimaryDockerHost()
+			}
+		}
+		for _, j := range c.ServiceJobs {
+			if j.DockerHost == "" {
+				j.DockerHost = c.dockerHandler.GetPrimaryDockerHost()
+			}
+		}
+		return
+	}
+
+	c.ExecJobs = fanOutExecJobs(c.ExecJobs, clients)
+	c.RunJobs = fanOutRunJobs(c.RunJobs, clients)
+	c.ServiceJobs = fanOutServiceJobs(c.ServiceJobs, clients)
+}
+
+func fanOutExecJobs(src map[string]*ExecJobConfig, clients map[string]*docker.Client) map[string]*ExecJobConfig {
+	dst := make(map[string]*ExecJobConfig)
+	for name, j := range src {
+		if j.DockerHost != "" || strings.Contains(name, "::") {
+			dst[name] = j
+			continue
+		}
+
+		for host := range clients {
+			dst[fmt.Sprintf("%s::%s", host, name)] = cloneExecJobConfigForHost(j, host)
+		}
+	}
+
+	return dst
+}
+
+func fanOutRunJobs(src map[string]*RunJobConfig, clients map[string]*docker.Client) map[string]*RunJobConfig {
+	dst := make(map[string]*RunJobConfig)
+	for name, j := range src {
+		if j.DockerHost != "" || strings.Contains(name, "::") {
+			dst[name] = j
+			continue
+		}
+
+		for host := range clients {
+			dst[fmt.Sprintf("%s::%s", host, name)] = cloneRunJobConfigForHost(j, host)
+		}
+	}
+
+	return dst
+}
+
+func fanOutServiceJobs(src map[string]*RunServiceConfig, clients map[string]*docker.Client) map[string]*RunServiceConfig {
+	dst := make(map[string]*RunServiceConfig)
+	for name, j := range src {
+		if j.DockerHost != "" || strings.Contains(name, "::") {
+			dst[name] = j
+			continue
+		}
+
+		for host := range clients {
+			dst[fmt.Sprintf("%s::%s", host, name)] = cloneRunServiceJobConfigForHost(j, host)
+		}
+	}
+
+	return dst
+}
+
+func cloneExecJobConfigForHost(src *ExecJobConfig, host string) *ExecJobConfig {
+	return &ExecJobConfig{
+		ExecJob: core.ExecJob{
+			BareJob: core.BareJob{
+				Schedule: src.Schedule,
+				Command:  src.Command,
+			},
+			Container:   src.Container,
+			User:        src.User,
+			TTY:         src.TTY,
+			Environment: append([]string(nil), src.Environment...),
+		},
+		DockerHost:    host,
+		OverlapConfig: src.OverlapConfig,
+		SlackConfig:   src.SlackConfig,
+		SaveConfig:    src.SaveConfig,
+		MailConfig:    src.MailConfig,
+	}
+}
+
+func cloneRunJobConfigForHost(src *RunJobConfig, host string) *RunJobConfig {
+	return &RunJobConfig{
+		RunJob: core.RunJob{
+			BareJob: core.BareJob{
+				Schedule: src.Schedule,
+				Command:  src.Command,
+			},
+			User:        src.User,
+			TTY:         src.TTY,
+			Delete:      src.Delete,
+			Pull:        src.Pull,
+			Image:       src.Image,
+			Network:     src.Network,
+			Hostname:    src.Hostname,
+			Container:   src.Container,
+			Volume:      append([]string(nil), src.Volume...),
+			VolumesFrom: append([]string(nil), src.VolumesFrom...),
+			Environment: append([]string(nil), src.Environment...),
+		},
+		DockerHost:    host,
+		OverlapConfig: src.OverlapConfig,
+		SlackConfig:   src.SlackConfig,
+		SaveConfig:    src.SaveConfig,
+		MailConfig:    src.MailConfig,
+	}
+}
+
+func cloneRunServiceJobConfigForHost(src *RunServiceConfig, host string) *RunServiceConfig {
+	return &RunServiceConfig{
+		RunServiceJob: core.RunServiceJob{
+			BareJob: core.BareJob{
+				Schedule: src.Schedule,
+				Command:  src.Command,
+			},
+			User:    src.User,
+			TTY:     src.TTY,
+			Delete:  src.Delete,
+			Image:   src.Image,
+			Network: src.Network,
+		},
+		DockerHost:    host,
+		OverlapConfig: src.OverlapConfig,
+		SlackConfig:   src.SlackConfig,
+		SaveConfig:    src.SaveConfig,
+		MailConfig:    src.MailConfig,
+	}
 }
 
 func (c *Config) JobsCount() int {
@@ -147,7 +313,7 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 				// so, lets take care of it by simply restarting
 				// For the hash to work properly, we must fill the fields before calling it
 				defaults.SetDefaults(newJob)
-				newJob.Client = c.dockerHandler.GetInternalDockerClient()
+				newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 				newJob.Name = newJobsName
 				if newJob.Hash() != j.Hash() {
 					c.logger.Debugf("Job %s has changed, restarting", name)
@@ -181,7 +347,7 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 		}
 		if !found {
 			defaults.SetDefaults(newJob)
-			newJob.Client = c.dockerHandler.GetInternalDockerClient()
+			newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 			newJob.Name = newJobsName
 			newJob.buildMiddlewares()
 			c.sh.AddJob(newJob)
@@ -199,7 +365,7 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 				// so, lets take care of it by simply restarting
 				// For the hash to work properly, we must fill the fields before calling it
 				defaults.SetDefaults(newJob)
-				newJob.Client = c.dockerHandler.GetInternalDockerClient()
+				newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 				newJob.Name = newJobsName
 				if newJob.Hash() != j.Hash() {
 					// Remove from the scheduler
@@ -231,7 +397,7 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 		}
 		if !found {
 			defaults.SetDefaults(newJob)
-			newJob.Client = c.dockerHandler.GetInternalDockerClient()
+			newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 			newJob.Name = newJobsName
 			newJob.buildMiddlewares()
 			c.sh.AddJob(newJob)
@@ -243,6 +409,7 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 // ExecJobConfig contains all configuration params needed to build a ExecJob
 type ExecJobConfig struct {
 	core.ExecJob              `mapstructure:",squash"`
+	DockerHost                string `gcfg:"docker-host" mapstructure:"docker-host"`
 	middlewares.OverlapConfig `mapstructure:",squash"`
 	middlewares.SlackConfig   `mapstructure:",squash"`
 	middlewares.SaveConfig    `mapstructure:",squash"`
@@ -259,6 +426,7 @@ func (c *ExecJobConfig) buildMiddlewares() {
 // RunServiceConfig contains all configuration params needed to build a RunJob
 type RunServiceConfig struct {
 	core.RunServiceJob        `mapstructure:",squash"`
+	DockerHost                string `gcfg:"docker-host" mapstructure:"docker-host"`
 	middlewares.OverlapConfig `mapstructure:",squash"`
 	middlewares.SlackConfig   `mapstructure:",squash"`
 	middlewares.SaveConfig    `mapstructure:",squash"`
@@ -267,6 +435,7 @@ type RunServiceConfig struct {
 
 type RunJobConfig struct {
 	core.RunJob               `mapstructure:",squash"`
+	DockerHost                string `gcfg:"docker-host" mapstructure:"docker-host"`
 	middlewares.OverlapConfig `mapstructure:",squash"`
 	middlewares.SlackConfig   `mapstructure:",squash"`
 	middlewares.SaveConfig    `mapstructure:",squash"`

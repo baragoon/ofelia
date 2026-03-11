@@ -17,7 +17,7 @@ func BuildTestImage(client *docker.Client, name string) error {
 
 	return client.BuildImage(docker.BuildImageOptions{
 		Name:         name,
-		Remote:       "github.com/mcuadros/ofelia",
+		Remote:       "github.com/baragoon/ofelia",
 		InputStream:  &buf,
 		OutputStream: os.Stdout,
 	})

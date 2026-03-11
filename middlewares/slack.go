@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mcuadros/ofelia/core"
+	"github.com/baragoon/ofelia/core"
 )
 
 var (
 	slackUsername   = "Ofelia"
-	slackAvatarURL  = "https://raw.githubusercontent.com/mcuadros/ofelia/master/static/avatar.png"
+	slackAvatarURL  = "https://raw.githubusercontent.com/baragoon/ofelia/master/static/avatar.png"
 	slackPayloadVar = "payload"
 )
 

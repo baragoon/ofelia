@@ -30,7 +30,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            mcuadros/ofelia
+            baragoon/ofelia
           # ghcr.io/${{ github.repository }}
           flavor: |
             latest=false

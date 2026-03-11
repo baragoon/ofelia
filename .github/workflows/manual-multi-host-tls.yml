@@ -1,0 +1,121 @@
+name: Manual Multi-Host TLS Integration
+
+on:
+  workflow_dispatch:
+
+jobs:
+  multi_host_tls_labels:
+    name: Multi-host TLS labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up test environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker network create ofelia-tls-net >/dev/null 2>&1 || true
+          docker volume create dind-certs >/dev/null
+
+          docker rm -f dind1 dind2 ofelia-multi >/dev/null 2>&1 || true
+
+          docker run -d \
+            --privileged \
+            --name dind1 \
+            --network ofelia-tls-net \
+            -e DOCKER_TLS_CERTDIR=/certs \
+            -e DOCKER_TLS_SAN=DNS:dind1,DNS:dind2 \
+            -v dind-certs:/certs \
+            docker:29-dind
+
+          docker run -d \
+            --privileged \
+            --name dind2 \
+            --network ofelia-tls-net \
+            -e DOCKER_TLS_CERTDIR=/certs \
+            -e DOCKER_TLS_SAN=DNS:dind1,DNS:dind2 \
+            -v dind-certs:/certs \
+            docker:29-dind
+
+          sleep 10
+
+          docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'dind1|dind2'
+
+      - name: Seed remote hosts via TLS
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --network ofelia-tls-net \
+            -v dind-certs:/certs \
+            docker:29-cli \
+            sh -lc '
+              set -e
+              for host in dind1 dind2; do
+                export DOCKER_HOST=tcp://$host:2376
+                export DOCKER_TLS_VERIFY=1
+                export DOCKER_CERT_PATH=/certs/client
+
+                echo "== $host =="
+                docker version --format "{{.Server.Version}}"
+
+                docker rm -f labeled-target >/dev/null 2>&1 || true
+                docker run -d \
+                  --name labeled-target \
+                  --label ofelia.enabled=true \
+                  --label ofelia.job-exec.multi-host-test.schedule="@every 5s" \
+                  --label ofelia.job-exec.multi-host-test.command="echo hello-from-$host" \
+                  alpine:3.23.3 \
+                  sleep 300 >/dev/null
+
+                docker ps --format "{{.Names}}" | grep labeled-target
+              done
+            '
+
+      - name: Build and run Ofelia against both TLS hosts
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker build -t ofelia-local:test .
+
+          docker run -d \
+            --name ofelia-multi \
+            --network ofelia-tls-net \
+            -v dind-certs:/certs:ro \
+            ofelia-local:test \
+            daemon \
+            --docker \
+            --docker-host=tcp://dind1:2376 \
+            --docker-host=tcp://dind2:2376 \
+            --docker-tls-verify \
+            --docker-cert-path=/certs/client
+
+          sleep 18
+          docker logs ofelia-multi | tee ofelia-multi.log
+
+      - name: Assert multi-host label execution
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          grep -F 'New job registered "dind1_2376::multi-host-test"' ofelia-multi.log
+          grep -F 'New job registered "dind2_2376::multi-host-test"' ofelia-multi.log
+          grep -F 'StdOut: hello-from-dind1' ofelia-multi.log
+          grep -F 'StdOut: hello-from-dind2' ofelia-multi.log
+
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          docker logs dind1 >/dev/null 2>&1 || true
+          docker logs dind2 >/dev/null 2>&1 || true
+          docker logs ofelia-multi >/dev/null 2>&1 || true
+          docker rm -f ofelia-multi dind1 dind2 >/dev/null 2>&1 || true
+          docker network rm ofelia-tls-net >/dev/null 2>&1 || true
+          docker volume rm dind-certs >/dev/null 2>&1 || true
