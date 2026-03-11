@@ -17,14 +17,14 @@ jobs:
         platform: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
     runs-on: ${{ matrix.platform }}
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
 
     - name: Install Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go-version }}
-
-    - name: Checkout code
-      uses: actions/checkout@v4
+        cache-dependency-path: go.sum
 
     - name: Install gotestsum
       run: go install gotest.tools/gotestsum@latest
@@ -41,17 +41,17 @@ jobs:
         platform: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.platform }}
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
 
     - name: Install Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: ${{ matrix.go-version }}
+        cache-dependency-path: go.sum
 
     - name: Install gotestsum
       run: go install gotest.tools/gotestsum@latest
-
-    - name: Checkout code
-      uses: actions/checkout@v4
 
     - name: Integration tests
       working-directory: integration
