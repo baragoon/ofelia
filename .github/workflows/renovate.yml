@@ -31,7 +31,6 @@ jobs:
       statuses: write
       actions: write
       contents: write
-      workflows: write
       id-token: write
       pull-requests: write
       issues: write
@@ -46,4 +45,4 @@ jobs:
           RENOVATE_REPOSITORIES: '["${{ github.repository }}"]'
           LOG_LEVEL: "${{inputs.log-level || 'info'}}"
         with:
-          token: '${{ secrets.GITHUB_TOKEN }}'
+          token: '${{ secrets.RENOVATE_TOKEN || secrets.GITHUB_TOKEN }}'
