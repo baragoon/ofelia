@@ -5,7 +5,6 @@
 - [job-local](#job-local)
 - [job-service-run](#job-service-run)
 
-
 >[!IMPORTANT]
 >Configuration keys are not case sensitive
 
@@ -27,6 +26,10 @@ This job is executed inside a running container. Similar to `docker exec`
   - *description*: Name of the container you want to execute the command in.
   - *value*: String, e.g. `nginx-proxy`
   - *default*: Required field, no default.
+- **Docker-Host**
+  - *description*: Target Docker host key for this job when Ofelia is started with multiple `--docker-host` endpoints.
+  - *value*: String, host key derived from endpoint (for example `docker-a.example.com_2376`).
+  - *default*: If omitted, the job is scheduled on all configured Docker hosts.
 - **User**
   - *description*: User as which the command should be executed, similar to `docker exec --user <user>`
   - *value*: String, e.g. `www-data`
@@ -108,6 +111,10 @@ This job can be used in 2 situations:
   - *description*: Name of the container you want to start.
   - *value*: String, e.g. `nginx-proxy`
   - *default*: Required field in case parameter `image` is not specified, no default.
+- **Docker-Host**
+  - *description*: Target Docker host key for this job when Ofelia is started with multiple `--docker-host` endpoints.
+  - *value*: String, host key derived from endpoint (for example `docker-a.example.com_2376`).
+  - *default*: If omitted, the job is scheduled on all configured Docker hosts.
 - **tty** (1,2)
   - *description*: Allocate a pseudo-tty, similar to `docker exec -t`. See this [Stack Overflow answer](https://stackoverflow.com/questions/30137135/confused-about-docker-t-option-to-allocate-a-pseudo-tty) for more info.
   - *value*: Boolean, either `true` or `false`
@@ -158,7 +165,7 @@ docker run -it --rm \
     --label ofelia.job-run.print-write-date.volume="/tmp/test:/tmp/test:rw" \
     --label ofelia.job-run.print-write-date.environment="FOO=bar" \
     --label ofelia.job-run.print-write-date.command="sh -c 'date | tee -a /tmp/test/date'" \
-        mcuadros/ofelia:latest daemon --docker
+        baragoon/ofelia:latest daemon --docker
 ```
 
 ## Job-local
@@ -209,7 +216,7 @@ docker run -it --rm \
     --label ofelia.job-local.create-file.image="alpine:latest" \
     --label ofelia.job-local.create-file.command="touch test.txt" \
     --label ofelia.job-local.create-file.dir="/tmp/" \
-        mcuadros/ofelia:latest daemon --docker
+        baragoon/ofelia:latest daemon --docker
 ```
 
 ## Job-service-run
@@ -248,6 +255,10 @@ This job can be used to:
   - *description*: Allocate a pseudo-tty, similar to `docker exec -t`. See this [Stack Overflow answer](https://stackoverflow.com/questions/30137135/confused-about-docker-t-option-to-allocate-a-pseudo-tty) for more info.
   - *value*: Boolean, either `true` or `false`
   - *default*: `false`
+- **Docker-Host**
+  - *description*: Target Docker host key for this job when Ofelia is started with multiple `--docker-host` endpoints.
+  - *value*: String, host key derived from endpoint (for example `docker-a.example.com_2376`).
+  - *default*: If omitted, the job is scheduled on all configured Docker hosts.
 
 ### INI-file example
 

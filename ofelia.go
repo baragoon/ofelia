@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/jessevdk/go-flags"
-	"github.com/mcuadros/ofelia/cli"
-	"github.com/mcuadros/ofelia/core"
+	"github.com/baragoon/ofelia/cli"
+	"github.com/baragoon/ofelia/core"
 	"github.com/op/go-logging"
 )
 

@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/mcuadros/ofelia/core"
+	"github.com/baragoon/ofelia/core"
 )
 
 // ValidateCommand validates the config file

@@ -1,8 +1,8 @@
-# Ofelia - a job scheduler [![GitHub version](https://badge.fury.io/gh/mcuadros%2Fofelia.svg)](https://github.com/mcuadros/ofelia/releases) ![Test](https://github.com/mcuadros/ofelia/workflows/Test/badge.svg)
+# Ofelia - a job scheduler [![GitHub version](https://badge.fury.io/gh/mcuadros%2Fofelia.svg)](https://github.com/baragoon/ofelia/releases) ![Test](https://github.com/baragoon/ofelia/workflows/Test/badge.svg)
 
 <img src="https://weirdspace.dk/FranciscoIbanez/Graphics/Ofelia.gif" align="right" width="180px" height="300px" vspace="20" />
 
-**Ofelia** is a modern and low footprint job scheduler for __docker__ environments, built on Go. Ofelia aims to be a replacement for the old fashioned [cron](https://en.wikipedia.org/wiki/Cron).
+**Ofelia** is a modern and low footprint job scheduler for **docker** environments, built on Go. Ofelia aims to be a replacement for the old fashioned [cron](https://en.wikipedia.org/wiki/Cron).
 
 ### Why?
 
@@ -68,7 +68,7 @@ docker run -it --rm \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     --label ofelia.job-local.my-test-job.schedule="@every 5s" \
     --label ofelia.job-local.my-test-job.command="date" \
-        mcuadros/ofelia:latest daemon --docker
+        baragoon/ofelia:latest daemon --docker
 ```
 
 Labels format: `ofelia.<JOB_TYPE>.<JOB_NAME>.<JOB_PARAMETER>=<PARAMETER_VALUE>`.
@@ -98,7 +98,7 @@ Or with docker-compose:
 version: "3"
 services:
   ofelia:
-    image: mcuadros/ofelia:latest
+    image: baragoon/ofelia:latest
     depends_on:
       - nginx
     command: daemon --docker
@@ -125,7 +125,7 @@ services:
 version: "3"
 services:
   ofelia:
-    image: mcuadros/ofelia:latest
+    image: baragoon/ofelia:latest
     depends_on:
       - nginx
     command: daemon --docker -f label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}
@@ -143,19 +143,30 @@ services:
       ofelia.job-exec.datecron.command: "uname -a"
 ```
 
-
 #### Docker host configuration
 
 By default, **Ofelia** connects to the Docker daemon via the default socket (`/var/run/docker.sock` on Linux). However, you can configure it to connect to a different Docker host using environment variables. This is particularly useful when:
+
 - Using a Docker socket proxy for security
 - Connecting to a remote Docker daemon
 - Using Docker over TCP
 
 **Ofelia** supports the following Docker environment variables:
+
 - `DOCKER_HOST` - The Docker host to connect to (e.g., `tcp://docker-proxy:2375`, `unix:///custom/docker.sock`)
 - `DOCKER_TLS_VERIFY` - Enable TLS verification (set to `1` to enable)
 - `DOCKER_CERT_PATH` - Path to TLS certificates directory
 - `DOCKER_API_VERSION` - Docker API version to use
+
+In addition, `ofelia daemon` now supports explicit multi-host flags:
+
+- `--docker-host` - Docker endpoint. Repeat this flag to target multiple hosts.
+- `--docker-tls-verify` - Enable TLS verification for `--docker-host` endpoints.
+- `--docker-cert-path` - Directory containing `ca.pem`, `cert.pem`, and `key.pem`.
+- `--docker-ca-cert`, `--docker-cert`, `--docker-key` - Explicit TLS file paths.
+
+When multiple `--docker-host` values are provided, Docker jobs (`job-exec`, `job-run`, `job-service-run`) are scheduled on each remote host.
+If a specific job should run on only one host, set `docker-host = <host-key>` on that job in the INI config.
 
 ##### Using with a socket proxy
 
@@ -164,7 +175,7 @@ docker run -it --rm \
     -e DOCKER_HOST=tcp://docker-proxy:2375 \
     --label ofelia.job-local.my-test-job.schedule="@every 5s" \
     --label ofelia.job-local.my-test-job.command="date" \
-        mcuadros/ofelia:latest daemon --docker
+        baragoon/ofelia:latest daemon --docker
 ```
 
 Or with docker-compose:
@@ -182,7 +193,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   ofelia:
-    image: mcuadros/ofelia:latest
+    image: baragoon/ofelia:latest
     depends_on:
       - docker-proxy
       - nginx
@@ -209,12 +220,36 @@ docker run -it --rm \
     -e DOCKER_TLS_VERIFY=1 \
     -e DOCKER_CERT_PATH=/certs \
     -v /path/to/certs:/certs:ro \
-        mcuadros/ofelia:latest daemon --config=/path/to/config.ini
+        baragoon/ofelia:latest daemon --config=/path/to/config.ini
 ```
 
+##### Running against multiple remote TLS daemons (port 2376)
+
+```sh
+docker run -it --rm \
+  -v /path/to/certs:/certs:ro \
+  baragoon/ofelia:latest daemon \
+    --docker \
+    --docker-host=tcp://docker-a.example.com:2376 \
+    --docker-host=tcp://docker-b.example.com:2376 \
+    --docker-tls-verify \
+    --docker-cert-path=/certs \
+    --config=/etc/ofelia.conf
+```
+
+##### Manual GitHub Actions integration workflows
+
+This repository includes manual `workflow_dispatch` workflows for end-to-end multi-host verification in GitHub Actions.
+
+- `Manual Multi-Host TLS Integration` starts two TLS-enabled Docker-in-Docker daemons, seeds label-based jobs on both hosts, and verifies that Ofelia discovers and executes jobs across both remote endpoints.
+- `Manual Multi-Host Pinned Integration` starts the same dual-host TLS environment, runs a config file with explicit `docker-host` job pinning, verifies each job executes only against its assigned Docker host, and includes an intentional wrong-host check that must fail with `no such container`.
+
+Run them from the Actions tab when you want a full integration check without waiting for normal CI triggers.
 
 ### Logging
+
 **Ofelia** comes with three different logging drivers:
+
 - `mail` to send mails
 - `save` to save structured execution reports to a directory
 - `slack` to send messages via a slack webhook
@@ -222,6 +257,7 @@ docker run -it --rm \
 These can be configured by setting the options listed below in the `[global]` section of your config.ini, or via docker labels on the `ofelia` container (regardless of where your job will actually be running).
 
 #### Options
+
 - `smtp-host` - address of the SMTP server.
 - `smtp-port` - port number of the SMTP server.
 - `smtp-user` - user name used to connect to the SMTP server.
@@ -238,12 +274,13 @@ These can be configured by setting the options listed below in the `[global]` se
 - `slack-only-on-error` - only send a slack message if the execution was not successful.
 
 ### Overlap
+
 **Ofelia** can prevent that a job is run twice in parallel (e.g. if the first execution didn't complete before a second execution was scheduled. If a job has the option `no-overlap` set, it will not be run concurrently.
 
 ## Installation
 
 The easiest way to deploy **ofelia** is using *Docker*. See examples above.
 
-If don't want to run **ofelia** using our *Docker* image you can download a binary from [releases](https://github.com/mcuadros/ofelia/releases) page.
+If don't want to run **ofelia** using our *Docker* image you can download a binary from [releases](https://github.com/baragoon/ofelia/releases) page.
 
 > Why the project is named Ofelia? Ofelia is the name of the office assistant from the Spanish comic [Mortadelo y Filemón](https://en.wikipedia.org/wiki/Mort_%26_Phil)
