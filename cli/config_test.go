@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	defaults "github.com/mcuadros/go-defaults"
 	"github.com/baragoon/ofelia/core"
 	"github.com/baragoon/ofelia/middlewares"
+	defaults "github.com/mcuadros/go-defaults"
 	. "gopkg.in/check.v1"
 	gcfg "gopkg.in/gcfg.v1"
 )
@@ -161,7 +161,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					"label1": "1",
 					"label2": "2",
 				},
@@ -171,7 +171,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					requiredLabel: "true",
 					"label2":      "2",
 				},
@@ -181,7 +181,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					requiredLabel: "false",
 					labelPrefix + "." + jobLocal + ".job1.schedule": "everyday! yey!",
 				},
@@ -191,7 +191,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					requiredLabel: "true",
 					labelPrefix + "." + jobLocal + ".job1.schedule": "everyday! yey!",
 					labelPrefix + "." + jobLocal + ".job1.command":  "rm -rf *test*",
@@ -204,7 +204,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					requiredLabel: "true",
 					serviceLabel:  "true",
 					labelPrefix + "." + jobLocal + ".job1.schedule":      "schedule1",
@@ -214,7 +214,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobServiceRun + ".job3.schedule": "schedule3",
 					labelPrefix + "." + jobServiceRun + ".job3.command":  "command3",
 				},
-				"other": map[string]string{
+				"other": {
 					requiredLabel: "true",
 					labelPrefix + "." + jobLocal + ".job4.schedule":      "schedule4",
 					labelPrefix + "." + jobLocal + ".job4.command":       "command4",
@@ -226,19 +226,19 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 			},
 			ExpectedConfig: Config{
 				LocalJobs: map[string]*LocalJobConfig{
-					"job1": &LocalJobConfig{LocalJob: core.LocalJob{BareJob: core.BareJob{
+					"job1": {LocalJob: core.LocalJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
 						Command:  "command1",
 					}}},
 				},
 				RunJobs: map[string]*RunJobConfig{
-					"job2": &RunJobConfig{RunJob: core.RunJob{BareJob: core.BareJob{
+					"job2": {RunJob: core.RunJob{BareJob: core.BareJob{
 						Schedule: "schedule2",
 						Command:  "command2",
 					}}},
 				},
 				ServiceJobs: map[string]*RunServiceConfig{
-					"job3": &RunServiceConfig{RunServiceJob: core.RunServiceJob{BareJob: core.BareJob{
+					"job3": {RunServiceJob: core.RunServiceJob{BareJob: core.BareJob{
 						Schedule: "schedule3",
 						Command:  "command3",
 					}}},
@@ -248,13 +248,13 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					requiredLabel: "true",
 					serviceLabel:  "true",
 					labelPrefix + "." + jobExec + ".job1.schedule": "schedule1",
 					labelPrefix + "." + jobExec + ".job1.command":  "command1",
 				},
-				"other": map[string]string{
+				"other": {
 					requiredLabel: "true",
 					labelPrefix + "." + jobExec + ".job2.schedule": "schedule2",
 					labelPrefix + "." + jobExec + ".job2.command":  "command2",
@@ -262,11 +262,11 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 			},
 			ExpectedConfig: Config{
 				ExecJobs: map[string]*ExecJobConfig{
-					"job1": &ExecJobConfig{ExecJob: core.ExecJob{BareJob: core.BareJob{
+					"job1": {ExecJob: core.ExecJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
 						Command:  "command1",
 					}}},
-					"job2": &ExecJobConfig{ExecJob: core.ExecJob{
+					"job2": {ExecJob: core.ExecJob{
 						BareJob: core.BareJob{
 							Schedule: "schedule2",
 							Command:  "command2",
@@ -279,7 +279,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		},
 		{
 			Labels: map[string]map[string]string{
-				"some": map[string]string{
+				"some": {
 					requiredLabel: "true",
 					serviceLabel:  "true",
 					labelPrefix + "." + jobExec + ".job1.schedule":   "schedule1",
@@ -289,7 +289,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 			},
 			ExpectedConfig: Config{
 				ExecJobs: map[string]*ExecJobConfig{
-					"job1": &ExecJobConfig{ExecJob: core.ExecJob{BareJob: core.BareJob{
+					"job1": {ExecJob: core.ExecJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
 						Command:  "command1",
 					}},
