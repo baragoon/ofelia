@@ -7,6 +7,7 @@
     "dependencies"
   ],
   "dependencyDashboard": true,
+  "prCreation": "immediate",
   "rebaseWhen": "behind-base-branch",
   "prConcurrentLimit": 10,
   "packageRules": [
@@ -18,10 +19,15 @@
     },
     {
       "matchUpdateTypes": [
+        "digest",
+        "pin",
         "patch",
         "minor"
       ],
-      "groupName": "all non-major dependencies"
+      "groupName": "all non-major dependencies",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
     }
   ],
   "baseBranchPatterns": [
