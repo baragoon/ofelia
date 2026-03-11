@@ -82,11 +82,7 @@ func (j *RunJob) Run(ctx *Context) error {
 				return pullError
 			}
 
-			if searchErr != nil {
-				return searchErr
-			}
-
-			return nil
+			return searchErr
 		}(); err != nil {
 			return err
 		}
@@ -102,9 +98,7 @@ func (j *RunJob) Run(ctx *Context) error {
 		}
 	}
 
-	if container != nil {
-		j.containerID = container.ID
-	}
+	j.containerID = container.ID
 
 	// cleanup container if it is a created one
 	if j.Container == "" {

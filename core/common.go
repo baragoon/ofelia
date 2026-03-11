@@ -244,7 +244,7 @@ func randomID() string {
 func buildFindLocalImageOptions(image string) docker.ListImagesOptions {
 	return docker.ListImagesOptions{
 		Filters: map[string][]string{
-			"reference": []string{image},
+			"reference": {image},
 		},
 	}
 }
