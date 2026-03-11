@@ -3,6 +3,27 @@
   "extends": [
     "config:recommended"
   ],
+  "labels": [
+    "dependencies"
+  ],
+  "dependencyDashboard": true,
+  "rebaseWhen": "behind-base-branch",
+  "prConcurrentLimit": 10,
+  "packageRules": [
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions"
+    },
+    {
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "groupName": "all non-major dependencies"
+    }
+  ],
   "baseBranchPatterns": [
     "master",
     "0.3.x"
