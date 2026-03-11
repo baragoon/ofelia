@@ -45,4 +45,4 @@ jobs:
           RENOVATE_REPOSITORIES: '["${{ github.repository }}"]'
           LOG_LEVEL: "${{ inputs.log-level || 'info' }}"
         with:
-          token: '${{ secrets.RENOVATE_TOKEN || github.token }}'
+          token: '${{ github.token }}'
