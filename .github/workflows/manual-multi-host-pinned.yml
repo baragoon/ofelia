@@ -89,6 +89,9 @@ jobs:
           docker-host = dind2_2376
           EOF
 
+          # YAML requires indentation in this block; strip it from INI content.
+          sed -i 's/^ *//' ofelia-pinned.conf
+
       - name: Build and run Ofelia with pinned jobs
         shell: bash
         run: |
