@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	docker "github.com/fsouza/go-dockerclient"
 	"github.com/baragoon/ofelia/core"
 	"github.com/baragoon/ofelia/middlewares"
+	docker "github.com/fsouza/go-dockerclient"
 
 	defaults "github.com/mcuadros/go-defaults"
 	gcfg "gopkg.in/gcfg.v1"
@@ -142,6 +142,10 @@ func (c *Config) resolveDockerClient(host string) *docker.Client {
 }
 
 func (c *Config) fanOutDockerJobs() {
+	if c.dockerHandler == nil {
+		return
+	}
+
 	clients := c.dockerHandler.GetInternalDockerClients()
 	if len(clients) <= 1 {
 		for _, j := range c.ExecJobs {

@@ -70,24 +70,24 @@ jobs:
         shell: bash
         run: |
           cat > ofelia-pinned.conf <<'EOF'
-          [job-exec "pin-dind1"]
-          schedule = @every 5s
-          container = pin-target-dind1
-          command = echo pinned-dind1
-          docker-host = dind1_2376
+[job-exec "pin-dind1"]
+schedule = @every 5s
+container = pin-target-dind1
+command = echo pinned-dind1
+docker-host = dind1_2376
 
-          [job-exec "pin-dind2"]
-          schedule = @every 5s
-          container = pin-target-dind2
-          command = echo pinned-dind2
-          docker-host = dind2_2376
+[job-exec "pin-dind2"]
+schedule = @every 5s
+container = pin-target-dind2
+command = echo pinned-dind2
+docker-host = dind2_2376
 
-          [job-exec "pin-mismatch"]
-          schedule = @every 5s
-          container = pin-target-dind1
-          command = echo should-not-run-on-dind2
-          docker-host = dind2_2376
-          EOF
+[job-exec "pin-mismatch"]
+schedule = @every 5s
+container = pin-target-dind1
+command = echo should-not-run-on-dind2
+docker-host = dind2_2376
+EOF
 
       - name: Build and run Ofelia with pinned jobs
         shell: bash

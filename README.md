@@ -1,4 +1,4 @@
-# Ofelia - a job scheduler [![GitHub version](https://badge.fury.io/gh/mcuadros%2Fofelia.svg)](https://github.com/baragoon/ofelia/releases) ![Test](https://github.com/baragoon/ofelia/workflows/Test/badge.svg)
+# Ofelia - a job scheduler [![GitHub version](https://badge.fury.io/gh/baragoon%2Fofelia.svg)](https://github.com/baragoon/ofelia/releases) ![Test](https://github.com/baragoon/ofelia/workflows/Test/badge.svg)
 
 <img src="https://weirdspace.dk/FranciscoIbanez/Graphics/Ofelia.gif" align="right" width="180px" height="300px" vspace="20" />
 
