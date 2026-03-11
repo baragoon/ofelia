@@ -12,7 +12,7 @@
 
 This job is executed inside a running container. Similar to `docker exec`
 
-### Parameters
+### Parameters (job-exec)
 
 - **Schedule** *
   - *description*: When the job should be executed. E.g. every 10 seconds or every night at 1 AM.
@@ -45,7 +45,7 @@ This job is executed inside a running container. Similar to `docker exec`
     - **Labels config**: multiple environment variables has to be provided as JSON array: `["FOO=bar", "BAZ=qux"]`
   - *default*: Optional field, no default.
 
-### INI-file example
+### INI-file example (job-exec)
 
 ```ini
 [job-exec "flush-nginx-logs"]
@@ -56,7 +56,7 @@ user = www-data
 tty = false
 ```
 
-### Docker labels example
+### Docker labels example (job-exec)
 
 `ofelia` container should be started **after** nginx container, to be able to read its labels, because real time labels reading is not supported yet.
 
@@ -77,7 +77,7 @@ This job can be used in 2 situations:
 1. To run a command inside of a new container, using a specific image. Similar to `docker run`
 1. To start a stopped container, similar to `docker start`
 
-### Parameters
+### Parameters (job-run)
 
 - **Schedule** * (1,2)
   - *description*: When the job should be executed. E.g. every 10 seconds or every night at 1 AM.
@@ -138,7 +138,7 @@ This job can be used in 2 situations:
     - **Labels config**: multiple environment variables has to be provided as JSON array: `["FOO=bar", "BAZ=qux"]`
   - *default*: Optional field, no default.
 
-### INI-file example
+### INI-file example (job-run)
 
 ```ini
 [job-run "print-write-date"]
@@ -152,7 +152,7 @@ environment = BAZ=qux
 
 Then you can check output in host machine file `/tmp/test/date`
 
-### Docker labels example
+### Docker labels example (job-run)
 
 Docker run job has to be configured as labels on the `ofelia` container itself, because it is going to start new container:
 
@@ -174,7 +174,7 @@ Runs the command on the host running Ofelia.
 
 **Note**: In case Ofelia is running inside a container, the command is executed inside the container. Not on the Docker host.
 
-### Parameters
+### Parameters (job-local)
 
 - **Schedule** *
   - *description*: When the job should be executed. E.g. every 10 seconds or every night at 1 AM.
@@ -195,7 +195,7 @@ Runs the command on the host running Ofelia.
     - **Labels config**: multiple environment variables has to be provided as JSON array: `["FOO=bar", "BAZ=qux"]`
   - *default*: Optional field, no default.
 
-### INI-file example
+### INI-file example (job-local)
 
 ```ini
 [job-local "create-file"]
@@ -204,7 +204,7 @@ command = touch test.txt
 dir = /tmp/
 ```
 
-### Docker labels example
+### Docker labels example (job-local)
 
 Docker run job has to be configured as labels on the `ofelia` container itself, because it will be executed inside `ofelia` container
 
@@ -225,7 +225,7 @@ This job can be used to:
 
 - To run a command inside a new "run-once" service, for running inside a swarm.
 
-### Parameters
+### Parameters (job-service-run)
 
 - **Schedule** * (1,2)
   - *description*: When the job should be executed. E.g. every 10 seconds or every night at 1 AM.
@@ -260,7 +260,7 @@ This job can be used to:
   - *value*: String, host key derived from endpoint (for example `docker-a.example.com_2376`).
   - *default*: If omitted, the job is scheduled on all configured Docker hosts.
 
-### INI-file example
+### INI-file example (job-service-run)
 
 ```ini
 [job-service-run "service-executed-on-new-container"]

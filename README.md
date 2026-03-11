@@ -1,16 +1,16 @@
 # Ofelia - a job scheduler [![GitHub version](https://badge.fury.io/gh/baragoon%2Fofelia.svg)](https://github.com/baragoon/ofelia/releases) ![Test](https://github.com/baragoon/ofelia/workflows/Test/badge.svg)
 
-<img src="https://weirdspace.dk/FranciscoIbanez/Graphics/Ofelia.gif" align="right" width="180px" height="300px" vspace="20" />
+![Ofelia character](https://weirdspace.dk/FranciscoIbanez/Graphics/Ofelia.gif)
 
 **Ofelia** is a modern and low footprint job scheduler for **docker** environments, built on Go. Ofelia aims to be a replacement for the old fashioned [cron](https://en.wikipedia.org/wiki/Cron).
 
-### Why?
+## Why?
 
 It has been a long time since [`cron`](https://en.wikipedia.org/wiki/Cron) was released, actually more than 28 years. The world has changed a lot and especially since the `Docker` revolution. **Vixie's cron** works great but it's not extensible and it's hard to debug when something goes wrong.
 
 Many solutions are available: ready to go containerized `crons`, wrappers for your commands, etc. but in the end simple tasks become complex.
 
-### How?
+## How?
 
 The main feature of **Ofelia** is the ability to execute commands directly on Docker containers. Using Docker's API Ofelia emulates the behavior of [`exec`](https://docs.docker.com/reference/cli/docker/container/exec/), being able to run a command inside of a running container. Also you can run the command in a new container destroying it at the end of the execution.
 
