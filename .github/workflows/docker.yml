@@ -51,6 +51,11 @@ jobs:
         with:
           platforms: linux/amd64,linux/arm/v7,linux/arm64/v8
           push: true
+          # Keep provenance and sbom disabled for now: when this repo was publishing
+          # with docker/build-push-action@v6, GHCR exposed the attestation manifests as
+          # extra unknown/unknown package entries. Revisit once GHCR/Buildx no longer
+          # surfaces provenance and sbom attestations as separate unknown/unknown
+          # architectures for this image.
           provenance: false
           sbom: false
           tags: ${{ steps.meta.outputs.tags }}
