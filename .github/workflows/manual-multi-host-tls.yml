@@ -62,7 +62,18 @@ jobs:
                 export DOCKER_CERT_PATH=/certs/client
 
                 echo "== $host =="
-                docker version --format "{{.Server.Version}}"
+                for attempt in $(seq 1 20); do
+                  if docker version --format "{{.Server.Version}}"; then
+                    break
+                  fi
+
+                  if [ "$attempt" -eq 20 ]; then
+                    echo "Docker API on $host did not become reachable in time" >&2
+                    exit 1
+                  fi
+
+                  sleep 2
+                done
 
                 docker rm -f labeled-target >/dev/null 2>&1 || true
                 docker run -d \

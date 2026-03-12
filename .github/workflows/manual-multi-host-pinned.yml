@@ -59,6 +59,20 @@ jobs:
                 export DOCKER_TLS_VERIFY=1
                 export DOCKER_CERT_PATH=/certs/client
 
+                echo "== $host =="
+                for attempt in $(seq 1 20); do
+                  if docker version --format "{{.Server.Version}}"; then
+                    break
+                  fi
+
+                  if [ "$attempt" -eq 20 ]; then
+                    echo "Docker API on $host did not become reachable in time" >&2
+                    exit 1
+                  fi
+
+                  sleep 2
+                done
+
                 container="pin-target-$host"
                 docker rm -f "$container" >/dev/null 2>&1 || true
                 docker run -d --name "$container" alpine:3.23.3 sleep 300 >/dev/null
