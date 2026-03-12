@@ -18,6 +18,12 @@
       "groupName": "github-actions"
     },
     {
+      "matchPackageNames": [
+        "github.com/fsouza/go-dockerclient"
+      ],
+      "allowedVersions": "<=1.12.4"
+    },
+    {
       "matchUpdateTypes": [
         "digest",
         "pin",
