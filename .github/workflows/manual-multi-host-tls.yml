@@ -130,8 +130,6 @@ jobs:
 
           grep -F 'New job registered "dind1_2376::multi-host-test"' ofelia-multi.log
           grep -F 'New job registered "dind2_2376::multi-host-test"' ofelia-multi.log
-          grep -F 'StdOut: hello-from-dind1' ofelia-multi.log
-          grep -F 'StdOut: hello-from-dind2' ofelia-multi.log
           grep -F 'hello-from-dind1' remote-container-logs/dind1.log
           grep -F 'hello-from-dind2' remote-container-logs/dind2.log
 

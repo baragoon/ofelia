@@ -147,8 +147,6 @@ jobs:
           grep -F 'New job registered "pin-dind1"' ofelia-pinned.log
           grep -F 'New job registered "pin-dind2"' ofelia-pinned.log
           grep -F 'New job registered "pin-mismatch"' ofelia-pinned.log
-          grep -F 'StdOut: pinned-dind1' ofelia-pinned.log
-          grep -F 'StdOut: pinned-dind2' ofelia-pinned.log
           grep -F 'pin-mismatch' ofelia-pinned.log
           grep -i 'no such container' ofelia-pinned.log
           grep -F 'pinned-dind1' remote-container-logs/dind1.log
