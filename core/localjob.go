@@ -3,8 +3,6 @@ package core
 import (
 	"os"
 	"os/exec"
-
-	"github.com/gobs/args"
 )
 
 type LocalJob struct {
@@ -27,7 +25,7 @@ func (j *LocalJob) Run(ctx *Context) error {
 }
 
 func (j *LocalJob) buildCommand(ctx *Context) (*exec.Cmd, error) {
-	args := args.GetArgs(j.Command)
+	args := parseCommandArgs(j.Command)
 	bin, err := exec.LookPath(args[0])
 	if err != nil {
 		return nil, err

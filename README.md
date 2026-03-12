@@ -158,6 +158,16 @@ By default, **Ofelia** connects to the Docker daemon via the default socket (`/v
 - `DOCKER_CERT_PATH` - Path to TLS certificates directory
 - `DOCKER_API_VERSION` - Docker API version to use
 
+For multi-host setups via environment variables (for example in `docker compose`), you can use repeated host variables such as:
+
+- `DOCKER_HOST_0`, `DOCKER_HOST_1`, ...
+- `DOCKER_HOST_PRIMARY`, `DOCKER_HOST_BACKUP`, ...
+- `DOCKER_HOST.0`, `DOCKER_HOST.1`, `DOCKER_HOST.[0]`, ...
+
+Indexed entries are applied in numeric order, named entries are applied in lexical order.
+
+Additionally, `DOCKER_HOST` also accepts a host list when provided as a separated string (same separators as above). A single `DOCKER_HOST` value keeps the default single-host behavior.
+
 In addition, `ofelia daemon` now supports explicit multi-host flags:
 
 - `--docker-host` - Docker endpoint. Repeat this flag to target multiple hosts.

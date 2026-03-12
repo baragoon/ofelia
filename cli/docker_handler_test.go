@@ -57,6 +57,67 @@ func (s *TestDockerSuit) SetUpTest(c *check.C) {
 
 func (s *TestDockerSuit) TearDownTest(c *check.C) {
 	os.Unsetenv("DOCKER_HOST")
+	clearPatternedDockerHostEnv()
+}
+
+func (s *TestDockerSuit) TestResolveConfiguredDockerHostsPrefersCLI(c *check.C) {
+	os.Setenv("DOCKER_HOST_0", "tcp://env1:2376")
+	os.Setenv("DOCKER_HOST_1", "tcp://env2:2376")
+	os.Setenv("DOCKER_HOST", "tcp://legacy:2375")
+
+	hosts := resolveConfiguredDockerHosts([]string{"tcp://cli1:2376", "tcp://cli2:2376"})
+	c.Assert(hosts, check.DeepEquals, []string{"tcp://cli1:2376", "tcp://cli2:2376"})
+}
+
+func (s *TestDockerSuit) TestResolveConfiguredDockerHostsFromPatternedEnv(c *check.C) {
+	os.Unsetenv("DOCKER_HOST")
+	os.Setenv("DOCKER_HOST_10", "tcp://dind10:2376")
+	os.Setenv("DOCKER_HOST_2", "tcp://dind2:2376")
+	os.Setenv("DOCKER_HOST_ALPHA", "tcp://alpha:2376")
+	os.Setenv("DOCKER_HOST.BETA", "tcp://beta:2376")
+
+	hosts := resolveConfiguredDockerHosts(nil)
+	c.Assert(hosts, check.DeepEquals, []string{
+		"tcp://dind2:2376",
+		"tcp://dind10:2376",
+		"tcp://alpha:2376",
+		"tcp://beta:2376",
+	})
+}
+
+func (s *TestDockerSuit) TestResolveConfiguredDockerHostsFromBracketedIndexedEnv(c *check.C) {
+	os.Unsetenv("DOCKER_HOST")
+	os.Setenv("DOCKER_HOST.[1]", "tcp://dind2:2376")
+	os.Setenv("DOCKER_HOST.[0]", "tcp://dind1:2376")
+
+	hosts := resolveConfiguredDockerHosts(nil)
+	c.Assert(hosts, check.DeepEquals, []string{"tcp://dind1:2376", "tcp://dind2:2376"})
+}
+
+func (s *TestDockerSuit) TestResolveConfiguredDockerHostsFromDockerHostList(c *check.C) {
+	os.Setenv("DOCKER_HOST", "tcp://dind1:2376,tcp://dind2:2376")
+
+	hosts := resolveConfiguredDockerHosts(nil)
+	c.Assert(hosts, check.DeepEquals, []string{"tcp://dind1:2376", "tcp://dind2:2376"})
+}
+
+func (s *TestDockerSuit) TestResolveConfiguredDockerHostsSingleDockerHostKeepsLegacyFlow(c *check.C) {
+	os.Setenv("DOCKER_HOST", "tcp://single-host:2375")
+
+	hosts := resolveConfiguredDockerHosts(nil)
+	c.Assert(hosts, check.IsNil)
+}
+
+func clearPatternedDockerHostEnv() {
+	for _, rawEnv := range os.Environ() {
+		key, _, ok := strings.Cut(rawEnv, "=")
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(key, dockerHostIndexedEnvPrefix) || strings.HasPrefix(key, dockerHostDottedEnvPrefix) {
+			os.Unsetenv(key)
+		}
+	}
 }
 
 func (s *TestDockerSuit) TestLabelsFilterJobsCount(c *check.C) {
@@ -129,6 +190,44 @@ func (s *TestDockerSuit) TestFilterErrorsLabel(c *check.C) {
 		c.Assert(errors.Is(err, errInvalidDockerFilter), check.Equals, true)
 		c.Assert(conf, check.IsNil)
 	}
+}
+
+func (s *TestDockerSuit) TestExecJobMultilineCommandFromLabels(c *check.C) {
+	multilineCommand := "sh -lc echo first-line\nprintf second-line"
+	containersToStartWithLabels := []map[string]string{
+		{
+			requiredLabel: "true",
+			labelPrefix + "." + jobExec + ".job1.schedule": "* * * * *",
+			labelPrefix + "." + jobExec + ".job1.command":  multilineCommand,
+		},
+	}
+
+	_, err := s.startTestContainersWithLabels(containersToStartWithLabels)
+	c.Assert(err, check.IsNil)
+
+	conf, err := buildFromDockerLabels()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(conf.ExecJobs), check.Equals, 1)
+
+	var job *ExecJobConfig
+	for _, candidate := range conf.ExecJobs {
+		job = candidate
+	}
+	c.Assert(job, check.NotNil)
+	c.Assert(job.Command, check.Equals, multilineCommand)
+
+	job.Client = s.client
+	err = job.Run(&core.Context{Execution: core.NewExecution()})
+	c.Assert(err, check.IsNil)
+
+	container, err := s.client.InspectContainer(job.Container)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(container.ExecIDs) > 0, check.Equals, true)
+
+	exec, err := s.client.InspectExec(container.ExecIDs[len(container.ExecIDs)-1])
+	c.Assert(err, check.IsNil)
+	c.Assert(exec.ProcessConfig.EntryPoint, check.Equals, "sh")
+	c.Assert(exec.ProcessConfig.Arguments, check.DeepEquals, []string{"-lc", "echo first-line\nprintf second-line"})
 }
 
 func (s *TestDockerSuit) startTestContainersWithLabels(containerLabels []map[string]string) ([]*docker.Container, error) {

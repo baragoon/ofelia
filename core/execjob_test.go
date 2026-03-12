@@ -85,6 +85,21 @@ func (s *SuiteExecJob) TestRun(c *C) {
 	// no way to check for env :|
 }
 
+func (s *SuiteExecJob) TestRunPreservesShellCommand(c *C) {
+	job := &ExecJob{Client: s.client}
+	job.Container = ContainerFixture
+	job.Command = "sh -lc \"echo first-line\nprintf second-line\""
+
+	e := NewExecution()
+	err := job.Run(&Context{Execution: e})
+	c.Assert(err, IsNil)
+
+	exec, err := job.inspectExec()
+	c.Assert(err, IsNil)
+	c.Assert(exec.ProcessConfig.EntryPoint, Equals, "sh")
+	c.Assert(exec.ProcessConfig.Arguments, DeepEquals, []string{"-lc", "echo first-line\nprintf second-line"})
+}
+
 func (s *SuiteExecJob) buildContainer(c *C) {
 	inputbuf := bytes.NewBuffer(nil)
 	tr := tar.NewWriter(inputbuf)

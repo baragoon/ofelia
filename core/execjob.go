@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/gobs/args"
 )
 
 type ExecJob struct {
@@ -57,7 +56,7 @@ func (j *ExecJob) buildExec() (*docker.Exec, error) {
 		AttachStdout: true,
 		AttachStderr: true,
 		Tty:          j.TTY,
-		Cmd:          args.GetArgs(j.Command),
+		Cmd:          parseCommandArgs(j.Command),
 		Container:    j.Container,
 		User:         j.User,
 		Env:          j.Environment,

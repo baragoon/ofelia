@@ -6,7 +6,6 @@ import (
 	"time"
 
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/gobs/args"
 )
 
 var dockercfg *docker.AuthConfigurations
@@ -164,7 +163,7 @@ func (j *RunJob) buildContainer() (*docker.Container, error) {
 			AttachStdout: true,
 			AttachStderr: true,
 			Tty:          j.TTY,
-			Cmd:          args.GetArgs(j.Command),
+			Cmd:          parseCommandArgs(j.Command),
 			User:         j.User,
 			Env:          j.Environment,
 			Hostname:     j.Hostname,

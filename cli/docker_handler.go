@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,11 @@ var (
 	errNoContainersMatchingFilters = errors.New("no containers matching filters")
 	errInvalidDockerFilter         = errors.New("invalid docker filter")
 	errFailedToListContainers      = errors.New("failed to list containers")
+)
+
+const (
+	dockerHostIndexedEnvPrefix = "DOCKER_HOST_"
+	dockerHostDottedEnvPrefix  = "DOCKER_HOST."
 )
 
 type DockerHandler struct {
@@ -155,7 +162,7 @@ func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels 
 		dockerClients:     make(map[string]*docker.Client),
 	}
 
-	hosts := connOpts.Hosts
+	hosts := resolveConfiguredDockerHosts(connOpts.Hosts)
 	if len(hosts) == 0 {
 		hosts = []string{""}
 	}
@@ -187,6 +194,170 @@ func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels 
 		go c.watch()
 	}
 	return c, nil
+}
+
+func resolveConfiguredDockerHosts(cliHosts []string) []string {
+	if len(cliHosts) > 0 {
+		return cliHosts
+	}
+
+	if hosts := parseDockerHostsFromPatternedEnv(); len(hosts) > 0 {
+		return hosts
+	}
+
+	// Keep backwards compatibility for the single-host DOCKER_HOST behavior.
+	dockerHost := strings.TrimSpace(os.Getenv("DOCKER_HOST"))
+	if hasDockerHostsListSeparator(dockerHost) {
+		return parseDockerHosts(dockerHost)
+	}
+
+	return nil
+}
+
+type dockerHostEnvEntry struct {
+	key   string
+	sort  string
+	value string
+	index int
+	named bool
+}
+
+func parseDockerHostsFromPatternedEnv() []string {
+	entries := make([]dockerHostEnvEntry, 0)
+	for _, rawEnv := range os.Environ() {
+		key, value, ok := strings.Cut(rawEnv, "=")
+		if !ok {
+			continue
+		}
+
+		suffix, matched := dockerHostEnvSuffix(key)
+		if !matched {
+			continue
+		}
+
+		entry := dockerHostEnvEntry{
+			key:   key,
+			sort:  suffix,
+			value: strings.TrimSpace(value),
+			index: -1,
+			named: true,
+		}
+
+		if index, ok := parseDockerHostEnvIndex(suffix); ok {
+			entry.index = index
+			entry.named = false
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if len(entries) == 0 {
+		return nil
+	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		left := entries[i]
+		right := entries[j]
+
+		if left.named != right.named {
+			return !left.named
+		}
+		if !left.named && left.index != right.index {
+			return left.index < right.index
+		}
+		if left.sort != right.sort {
+			return left.sort < right.sort
+		}
+
+		return left.key < right.key
+	})
+
+	hosts := make([]string, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		if entry.value == "" {
+			continue
+		}
+		if _, ok := seen[entry.value]; ok {
+			continue
+		}
+		seen[entry.value] = struct{}{}
+		hosts = append(hosts, entry.value)
+	}
+
+	if len(hosts) == 0 {
+		return nil
+	}
+
+	return hosts
+}
+
+func dockerHostEnvSuffix(key string) (string, bool) {
+	if strings.HasPrefix(key, dockerHostIndexedEnvPrefix) {
+		suffix := strings.TrimSpace(strings.TrimPrefix(key, dockerHostIndexedEnvPrefix))
+		return suffix, suffix != ""
+	}
+
+	if strings.HasPrefix(key, dockerHostDottedEnvPrefix) {
+		suffix := strings.TrimSpace(strings.TrimPrefix(key, dockerHostDottedEnvPrefix))
+		return suffix, suffix != ""
+	}
+
+	return "", false
+}
+
+func parseDockerHostEnvIndex(suffix string) (int, bool) {
+	suffix = strings.TrimSpace(suffix)
+	if strings.HasPrefix(suffix, "[") && strings.HasSuffix(suffix, "]") {
+		suffix = strings.TrimSuffix(strings.TrimPrefix(suffix, "["), "]")
+	}
+
+	index, err := strconv.Atoi(suffix)
+	if err != nil || index < 0 {
+		return 0, false
+	}
+
+	return index, true
+}
+
+func hasDockerHostsListSeparator(hosts string) bool {
+	return strings.ContainsAny(hosts, ",; \n\t ")
+}
+
+func parseDockerHosts(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', '\n', '\t', ' ':
+			return true
+		default:
+			return false
+		}
+	})
+
+	hosts := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		host := strings.TrimSpace(part)
+		if host == "" {
+			continue
+		}
+		if _, ok := seen[host]; ok {
+			continue
+		}
+		seen[host] = struct{}{}
+		hosts = append(hosts, host)
+	}
+
+	if len(hosts) == 0 {
+		return nil
+	}
+
+	return hosts
 }
 
 func (c *DockerHandler) ConfigFromLabelsEnabled() bool {
