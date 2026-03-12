@@ -73,19 +73,19 @@ jobs:
             '[job-exec "pin-dind1"]' \
             'schedule = @every 5s' \
             'container = pin-target-dind1' \
-            'command = echo pinned-dind1' \
+            'command = sh -lc "echo pinned-dind1 >/proc/1/fd/1"' \
             'docker-host = dind1_2376' \
             '' \
             '[job-exec "pin-dind2"]' \
             'schedule = @every 5s' \
             'container = pin-target-dind2' \
-            'command = echo pinned-dind2' \
+            'command = sh -lc "echo pinned-dind2 >/proc/1/fd/1"' \
             'docker-host = dind2_2376' \
             '' \
             '[job-exec "pin-mismatch"]' \
             'schedule = @every 5s' \
             'container = pin-target-dind1' \
-            'command = echo should-not-run-on-dind2' \
+            'command = sh -lc "echo should-not-run-on-dind2 >/proc/1/fd/1"' \
             'docker-host = dind2_2376' \
             > ofelia-pinned.conf
 
@@ -112,6 +112,33 @@ jobs:
           sleep 18
           docker logs ofelia-pinned | tee ofelia-pinned.log
 
+      - name: Collect pinned target container logs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --network ofelia-tls-net \
+            -v dind-certs:/certs \
+            -v "$PWD:/workspace" \
+            docker:29-cli \
+            sh -lc '
+              set -e
+              mkdir -p /workspace/remote-container-logs
+
+              export DOCKER_TLS_VERIFY=1
+              export DOCKER_CERT_PATH=/certs/client
+
+              export DOCKER_HOST=tcp://dind1:2376
+              docker logs pin-target-dind1 > /workspace/remote-container-logs/dind1.log
+
+              export DOCKER_HOST=tcp://dind2:2376
+              docker logs pin-target-dind2 > /workspace/remote-container-logs/dind2.log
+            '
+
+          cat remote-container-logs/dind1.log
+          cat remote-container-logs/dind2.log
+
       - name: Assert pinned execution
         shell: bash
         run: |
@@ -124,6 +151,9 @@ jobs:
           grep -F 'StdOut: pinned-dind2' ofelia-pinned.log
           grep -F 'pin-mismatch' ofelia-pinned.log
           grep -i 'no such container' ofelia-pinned.log
+          grep -F 'pinned-dind1' remote-container-logs/dind1.log
+          grep -F 'pinned-dind2' remote-container-logs/dind2.log
+          ! grep -F 'should-not-run-on-dind2' remote-container-logs/dind2.log
 
       - name: Cleanup
         if: always()

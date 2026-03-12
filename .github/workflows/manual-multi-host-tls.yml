@@ -69,7 +69,7 @@ jobs:
                   --name labeled-target \
                   --label ofelia.enabled=true \
                   --label ofelia.job-exec.multi-host-test.schedule="@every 5s" \
-                  --label ofelia.job-exec.multi-host-test.command="echo hello-from-$host" \
+                  --label ofelia.job-exec.multi-host-test.command="sh -lc \"echo hello-from-$host >/proc/1/fd/1\"" \
                   alpine:3.23.3 \
                   sleep 300 >/dev/null
 
@@ -99,6 +99,30 @@ jobs:
           sleep 18
           docker logs ofelia-multi | tee ofelia-multi.log
 
+      - name: Collect remote target container logs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --network ofelia-tls-net \
+            -v dind-certs:/certs \
+            -v "$PWD:/workspace" \
+            docker:29-cli \
+            sh -lc '
+              set -e
+              mkdir -p /workspace/remote-container-logs
+              for host in dind1 dind2; do
+                export DOCKER_HOST=tcp://$host:2376
+                export DOCKER_TLS_VERIFY=1
+                export DOCKER_CERT_PATH=/certs/client
+                docker logs labeled-target > "/workspace/remote-container-logs/$host.log"
+              done
+            '
+
+          cat remote-container-logs/dind1.log
+          cat remote-container-logs/dind2.log
+
       - name: Assert multi-host label execution
         shell: bash
         run: |
@@ -108,6 +132,8 @@ jobs:
           grep -F 'New job registered "dind2_2376::multi-host-test"' ofelia-multi.log
           grep -F 'StdOut: hello-from-dind1' ofelia-multi.log
           grep -F 'StdOut: hello-from-dind2' ofelia-multi.log
+          grep -F 'hello-from-dind1' remote-container-logs/dind1.log
+          grep -F 'hello-from-dind2' remote-container-logs/dind2.log
 
       - name: Cleanup
         if: always()
