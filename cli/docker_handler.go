@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/baragoon/ofelia/core"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/baragoon/ofelia/core"
 )
 
 const (
@@ -160,21 +160,27 @@ func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels 
 		hosts = []string{""}
 	}
 
-	for i, host := range hosts {
+	for _, host := range hosts {
 		d, resolvedHost, err := c.buildDockerClient(host)
 		if err != nil {
-			return nil, err
+			c.logger.Warningf("Skipping Docker host %q: failed to build client: %v", strings.TrimSpace(host), err)
+			continue
 		}
 		// Do a sanity check on docker.
 		if _, err := d.Info(); err != nil {
-			return nil, err
+			c.logger.Warningf("Skipping Docker host %q: failed health check: %v", resolvedHost, err)
+			continue
 		}
 
 		hostKey := normalizeDockerHostKey(resolvedHost)
 		c.dockerClients[hostKey] = d
-		if i == 0 {
+		if c.primaryDockerHost == "" {
 			c.primaryDockerHost = hostKey
 		}
+	}
+
+	if len(c.dockerClients) == 0 {
+		return nil, fmt.Errorf("no reachable docker hosts from %d configured host(s)", len(hosts))
 	}
 
 	if c.configsFromLabels {

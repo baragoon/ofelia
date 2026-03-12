@@ -6,9 +6,9 @@ import (
 	"os"
 	"strings"
 
+	"github.com/baragoon/ofelia/core"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/testing"
-	"github.com/baragoon/ofelia/core"
 	check "gopkg.in/check.v1"
 )
 
@@ -202,4 +202,22 @@ func (s *TestDockerSuit) TestGetContainerID(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(id, check.Equals, tt.expect)
 	}
+}
+
+func (s *TestDockerSuit) TestNewDockerHandlerSkipsUnreachableHosts(c *check.C) {
+	conf := &Config{}
+
+	h, err := NewDockerHandler(conf, nil, false, &TestLogger{}, DockerConnectionOptions{
+		Hosts: []string{"tcp://127.0.0.1:1", s.server.URL()},
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(h, check.NotNil)
+
+	clients := h.GetInternalDockerClients()
+	c.Assert(len(clients), check.Equals, 1)
+
+	goodHostKey := normalizeDockerHostKey(s.server.URL())
+	_, ok := clients[goodHostKey]
+	c.Assert(ok, check.Equals, true)
+	c.Assert(h.GetPrimaryDockerHost(), check.Equals, goodHostKey)
 }
