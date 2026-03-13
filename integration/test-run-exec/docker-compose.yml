@@ -10,7 +10,7 @@ services:
     labels:
       ofelia.enabled: "true"
       ofelia.job-exec.my-exec-job.schedule: &schedule ${SCHEDULE:-@every 5s}
-      ofelia.job-exec.my-exec-job.command: &cmd_date_tee /bin/sh -c 'date | tee -a /tmp/$${OUTPUT_FILE}'"
+      ofelia.job-exec.my-exec-job.command: &cmd_date_tee /bin/sh -c 'date | tee -a /tmp/$${OUTPUT_FILE}'
 
   ofelia:
     build:

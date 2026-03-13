@@ -3,18 +3,16 @@ on:
   push:
     branches:
       - master
-      - 0.3.x
   pull_request:
     branches:
       - master
-      - 0.3.x
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
         go-version: ['stable']
-        platform: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+        platform: [ubuntu-25.10, ubuntu-25.10-arm]
     runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout code
@@ -38,7 +36,7 @@ jobs:
       fail-fast: false
       matrix:
         go-version: ['stable']
-        platform: [ubuntu-latest, ubuntu-24.04-arm]
+        platform: [ubuntu-25.10, ubuntu-25.10-arm]
     runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout code
