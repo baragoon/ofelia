@@ -53,6 +53,26 @@ func TestTrimContainerPrefixedJobName(t *testing.T) {
 	}
 }
 
+func TestIsMultilineCommand(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{name: "newline", input: "echo one\necho two", expected: true},
+		{name: "line continuation", input: "curl foo \\ -H bar", expected: true},
+		{name: "single line", input: "date", expected: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isMultilineCommand(tc.input); got != tc.expected {
+				t.Fatalf("expected %t, got %t", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestHostTitle(t *testing.T) {
 	testCases := []struct {
 		name     string

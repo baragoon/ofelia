@@ -18,23 +18,25 @@ const localHostKey = "local"
 const defaultWebUIRefreshSeconds = 10
 
 type webUIJob struct {
-	Name     string
-	Type     string
-	Schedule string
-	Command  string
-	Target   string
-	NextRun  time.Time
-	LastRun  time.Time
-	Running  bool
+	Name             string
+	Type             string
+	Schedule         string
+	Command          string
+	MultilineCommand bool
+	Target           string
+	NextRun          time.Time
+	LastRun          time.Time
+	Running          bool
 }
 
 type webUIHost struct {
-	Key          string
-	Title        string
-	Jobs         []webUIJob
-	JobCount     int
-	RunningCount int
-	NextRun      time.Time
+	Key                  string
+	Title                string
+	Jobs                 []webUIJob
+	JobCount             int
+	RunningCount         int
+	NextRun              time.Time
+	HasMultilineCommands bool
 }
 
 type webUIState struct {
@@ -188,14 +190,15 @@ func buildWebUIState(config *Config) webUIState {
 			name = trimContainerPrefixedJobName(name)
 			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
-				Name:     name,
-				Type:     "exec",
-				Schedule: job.Schedule,
-				Command:  job.Command,
-				Target:   job.Container,
-				NextRun:  t.next,
-				LastRun:  t.prev,
-				Running:  job.Running() > 0,
+				Name:             name,
+				Type:             "exec",
+				Schedule:         job.Schedule,
+				Command:          job.Command,
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           job.Container,
+				NextRun:          t.next,
+				LastRun:          t.prev,
+				Running:          job.Running() > 0,
 			})
 		}
 
@@ -210,14 +213,15 @@ func buildWebUIState(config *Config) webUIState {
 			}
 			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
-				Name:     name,
-				Type:     "run",
-				Schedule: job.Schedule,
-				Command:  job.Command,
-				Target:   target,
-				NextRun:  t.next,
-				LastRun:  t.prev,
-				Running:  job.Running() > 0,
+				Name:             name,
+				Type:             "run",
+				Schedule:         job.Schedule,
+				Command:          job.Command,
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           target,
+				NextRun:          t.next,
+				LastRun:          t.prev,
+				Running:          job.Running() > 0,
 			})
 		}
 
@@ -228,28 +232,30 @@ func buildWebUIState(config *Config) webUIState {
 			}
 			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
-				Name:     name,
-				Type:     "service-run",
-				Schedule: job.Schedule,
-				Command:  job.Command,
-				Target:   job.Image,
-				NextRun:  t.next,
-				LastRun:  t.prev,
-				Running:  job.Running() > 0,
+				Name:             name,
+				Type:             "service-run",
+				Schedule:         job.Schedule,
+				Command:          job.Command,
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           job.Image,
+				NextRun:          t.next,
+				LastRun:          t.prev,
+				Running:          job.Running() > 0,
 			})
 		}
 
 		for jobName, job := range config.LocalJobs {
 			t := timings[job.GetCronJobID()]
 			getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, webUIJob{
-				Name:     jobName,
-				Type:     "local",
-				Schedule: job.Schedule,
-				Command:  job.Command,
-				Target:   job.Dir,
-				NextRun:  t.next,
-				LastRun:  t.prev,
-				Running:  job.Running() > 0,
+				Name:             jobName,
+				Type:             "local",
+				Schedule:         job.Schedule,
+				Command:          job.Command,
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           job.Dir,
+				NextRun:          t.next,
+				LastRun:          t.prev,
+				Running:          job.Running() > 0,
 			})
 		}
 	}
@@ -269,6 +275,9 @@ func buildWebUIState(config *Config) webUIState {
 			if j.Running {
 				host.RunningCount++
 				totalRunning++
+			}
+			if j.MultilineCommand {
+				host.HasMultilineCommands = true
 			}
 			if !j.NextRun.IsZero() && (host.NextRun.IsZero() || j.NextRun.Before(host.NextRun)) {
 				host.NextRun = j.NextRun
@@ -330,6 +339,16 @@ func trimContainerPrefixedJobName(name string) string {
 	}
 
 	return jobName
+}
+
+func isMultilineCommand(command string) bool {
+	cmd := strings.TrimSpace(command)
+	if strings.Contains(cmd, "\n") {
+		return true
+	}
+
+	// Consider shell line-continuation style commands as multiline input.
+	return strings.Contains(cmd, "\\ ")
 }
 
 func hostTitle(key string) string {
@@ -465,7 +484,11 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
     main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
     .back { display: inline-flex; align-items: center; gap: .3rem; text-decoration: none; color: #6b7280; font-size: .82rem; margin-bottom: .9rem; }
     .back:hover { color: #3fb950; }
-    .host-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #1a1f36; }
+	.host-title { font-size: 1rem; font-weight: 600; margin-bottom: .7rem; color: #1a1f36; }
+	.host-actions { margin-bottom: .9rem; display: flex; justify-content: flex-end; }
+	.expand-all-btn { border: 1px solid #bfdbce; border-radius: 999px; background: #ecfdf3; color: #166534; font-size: .74rem; font-weight: 700; padding: .32rem .72rem; cursor: pointer; letter-spacing: .01em; }
+	.expand-all-btn:hover { border-color: #86efac; background: #dcfce7; }
+	.expand-all-btn:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     .job-list { display: flex; flex-direction: column; gap: .45rem; }
     .job-row { background: #fff; border: 1px solid #e5e7eb; border-left: 3px solid #3fb950; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
     .job-row.is-running { border-left-color: #1a7f37; }
@@ -473,7 +496,12 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
     .job-body { min-width: 0; }
     .job-name { font-weight: 600; font-size: .9rem; margin-bottom: .15rem; word-break: break-word; }
     .job-target { font-size: .78rem; color: #6b7280; margin-bottom: .1rem; }
-    .job-cmd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .75rem; color: #8b949e; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+	.job-cmd-wrap { margin-top: .12rem; }
+	.job-cmd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .75rem; color: #8b949e; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; word-break: break-word; }
+	.job-cmd.expanded { display: block; -webkit-line-clamp: unset; }
+	.cmd-expand-btn { margin-top: .25rem; border: 1px solid #dbeafe; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: .7rem; font-weight: 700; padding: .14rem .5rem; cursor: pointer; }
+	.cmd-expand-btn:hover { background: #dbeafe; border-color: #bfdbfe; }
+	.cmd-expand-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
     .job-meta { margin-top: .4rem; display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .76rem; color: #6b7280; }
     .lbl { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-right: .3rem; }
     .lbl-next { color: #3fb950; }
@@ -497,26 +525,84 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
   <main>
     <a class="back" href="/">&#8592; All hosts</a>
     <div class="host-title">{{.Title}}</div>
+		{{if .HasMultilineCommands}}
+		<div class="host-actions">
+			<button id="expand-all-btn" class="expand-all-btn" type="button">Expand all commands</button>
+		</div>
+		{{end}}
     <div class="job-list">
-      {{range .Jobs}}
-      <div class="job-row{{if .Running}} is-running{{end}}">
-        <code class="job-schedule">{{.Schedule}}</code>
+			{{range $idx, $job := .Jobs}}
+			<div class="job-row{{if $job.Running}} is-running{{end}}">
+				<code class="job-schedule">{{$job.Schedule}}</code>
         <div class="job-body">
-          <div class="job-name">{{.Name}}</div>
-          {{if .Target}}<div class="job-target">{{.Target}}</div>{{end}}
-          {{if .Command}}<div class="job-cmd">{{.Command}}</div>{{end}}
+					<div class="job-name">{{$job.Name}}</div>
+					{{if $job.Target}}<div class="job-target">{{$job.Target}}</div>{{end}}
+					{{if $job.Command}}
+					<div class="job-cmd-wrap">
+						<div id="cmd-{{$idx}}" class="job-cmd{{if not $job.MultilineCommand}} expanded{{end}}">{{$job.Command}}</div>
+						{{if $job.MultilineCommand}}
+						<button type="button" class="cmd-expand-btn" data-target="cmd-{{$idx}}" data-expanded="false" aria-expanded="false">Expand command</button>
+						{{end}}
+					</div>
+					{{end}}
           <div class="job-meta">
-            <span><span class="lbl lbl-next">Next Run</span>{{if notZero .NextRun}}{{relNext .NextRun}} &middot; {{fmtTime .NextRun}}{{else}}&mdash;{{end}}</span>
-            <span><span class="lbl">Last Run</span>{{if notZero .LastRun}}{{fmtTime .LastRun}}{{else}}&mdash;{{end}}</span>
+						<span><span class="lbl lbl-next">Next Run</span>{{if notZero $job.NextRun}}{{relNext $job.NextRun}} &middot; {{fmtTime $job.NextRun}}{{else}}&mdash;{{end}}</span>
+						<span><span class="lbl">Last Run</span>{{if notZero $job.LastRun}}{{fmtTime $job.LastRun}}{{else}}&mdash;{{end}}</span>
           </div>
         </div>
         <div class="job-badges">
-          {{if .Running}}<span class="badge badge-running">RUNNING</span>{{end}}
-          <span class="badge badge-type">{{.Type}}</span>
+					{{if $job.Running}}<span class="badge badge-running">RUNNING</span>{{end}}
+					<span class="badge badge-type">{{$job.Type}}</span>
         </div>
       </div>
       {{end}}
     </div>
   </main>
+	<script>
+		(function () {
+			const buttons = document.querySelectorAll('.cmd-expand-btn');
+			buttons.forEach((btn) => {
+				btn.addEventListener('click', () => {
+					const target = document.getElementById(btn.dataset.target);
+					if (!target) return;
+					const expanded = btn.dataset.expanded === 'true';
+					if (expanded) {
+						target.classList.remove('expanded');
+						btn.dataset.expanded = 'false';
+						btn.setAttribute('aria-expanded', 'false');
+						btn.textContent = 'Expand command';
+					} else {
+						target.classList.add('expanded');
+						btn.dataset.expanded = 'true';
+						btn.setAttribute('aria-expanded', 'true');
+						btn.textContent = 'Collapse command';
+					}
+				});
+			});
+
+			const expandAllBtn = document.getElementById('expand-all-btn');
+			if (!expandAllBtn) return;
+			expandAllBtn.addEventListener('click', () => {
+				const expandAll = expandAllBtn.dataset.expanded !== 'true';
+				buttons.forEach((btn) => {
+					const target = document.getElementById(btn.dataset.target);
+					if (!target) return;
+					if (expandAll) {
+						target.classList.add('expanded');
+						btn.dataset.expanded = 'true';
+						btn.setAttribute('aria-expanded', 'true');
+						btn.textContent = 'Collapse command';
+					} else {
+						target.classList.remove('expanded');
+						btn.dataset.expanded = 'false';
+						btn.setAttribute('aria-expanded', 'false');
+						btn.textContent = 'Expand command';
+					}
+				});
+				expandAllBtn.dataset.expanded = expandAll ? 'true' : 'false';
+				expandAllBtn.textContent = expandAll ? 'Collapse all commands' : 'Expand all commands';
+			});
+		})();
+	</script>
 </body>
 </html>`))
