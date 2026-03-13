@@ -277,6 +277,14 @@ Then open `http://localhost:8080`:
 Use `--ui-refresh-sec=<seconds>` to tune browser auto-refresh cadence.
 Label-driven changes discovered by `--docker` polling appear without restarting Ofelia.
 
+The same settings can be provided via environment variables (useful in Docker/Compose):
+
+- `OFELIA_UI=true`
+- `OFELIA_UI_BIND=8080`
+- `OFELIA_UI_REFRESH_SEC=10`
+
+CLI flags keep precedence when explicitly set (non-default values).
+
 For local jobs, host key is `local`.
 
 ### Logging

@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/baragoon/ofelia/core"
+)
+
+const (
+	defaultWebUIBindAddress = ":8080"
+	defaultWebUIRefresh     = 10
 )
 
 // DaemonCommand daemon process
@@ -50,6 +57,8 @@ func (c *DaemonCommand) Execute(args []string) error {
 }
 
 func (c *DaemonCommand) boot() (err error) {
+	c.applyWebUIEnvOverrides()
+
 	// Always try to read the config file, as there are options such as globals or some tasks that can be specified there and not in docker
 	config, err := BuildFromFile(c.ConfigFile, c.Logger)
 	if err != nil {
@@ -146,4 +155,66 @@ func (c *DaemonCommand) shutdown() error {
 
 	c.Logger.Warningf("Waiting running jobs.")
 	return c.scheduler.Stop()
+}
+
+func (c *DaemonCommand) applyWebUIEnvOverrides() {
+	if !c.WebUI {
+		if parsed, ok := parseEnvBool("OFELIA_UI"); ok {
+			c.WebUI = parsed
+		}
+	}
+
+	if c.WebUIBind == defaultWebUIBindAddress {
+		if v := strings.TrimSpace(os.Getenv("OFELIA_UI_BIND")); v != "" {
+			c.WebUIBind = normalizeWebUIBind(v)
+		}
+	}
+
+	if c.WebUIRefreshSec == defaultWebUIRefresh {
+		if v := strings.TrimSpace(os.Getenv("OFELIA_UI_REFRESH_SEC")); v != "" {
+			refresh, convErr := strconv.Atoi(v)
+			if convErr != nil {
+				if c.Logger != nil {
+					c.Logger.Warningf("Ignoring invalid OFELIA_UI_REFRESH_SEC value %q: %v", v, convErr)
+				}
+				return
+			}
+			c.WebUIRefreshSec = refresh
+		}
+	}
+}
+
+func parseEnvBool(name string) (bool, bool) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return false, false
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, false
+	}
+
+	return parsed, true
+}
+
+func normalizeWebUIBind(bind string) string {
+	bind = strings.TrimSpace(bind)
+	if bind == "" {
+		return bind
+	}
+
+	isNumericPort := true
+	for _, r := range bind {
+		if r < '0' || r > '9' {
+			isNumericPort = false
+			break
+		}
+	}
+
+	if isNumericPort {
+		return ":" + bind
+	}
+
+	return bind
 }
