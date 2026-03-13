@@ -21,6 +21,10 @@ on:
           - warn
           - info
           - debug
+      print-config:
+        default: false
+        type: boolean
+        description: Print effective Renovate config in logs
 
 jobs:
   renovate:
@@ -44,5 +48,6 @@ jobs:
         env:
           RENOVATE_REPOSITORIES: '["${{ github.repository }}"]'
           LOG_LEVEL: "${{ inputs.log-level || 'info' }}"
+          RENOVATE_PRINT_CONFIG: "${{ inputs.print-config || 'false' }}"
         with:
           token: '${{ github.token }}'
