@@ -33,6 +33,26 @@ func TestSplitHostPrefixedJobName(t *testing.T) {
 	}
 }
 
+func TestTrimContainerPrefixedJobName(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "container prefixed", input: "adguardhome::datecron", expected: "datecron"},
+		{name: "not prefixed", input: "datecron", expected: "datecron"},
+		{name: "empty job part", input: "adguardhome::", expected: "adguardhome::"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := trimContainerPrefixedJobName(tc.input); got != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestBuildWebUIStateGroupsJobsByHost(t *testing.T) {
 	config := NewConfig(&TestLogger{})
 	config.dockerHandler = &DockerHandler{}

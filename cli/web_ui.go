@@ -185,6 +185,7 @@ func buildWebUIState(config *Config) webUIState {
 			if strings.TrimSpace(job.DockerHost) != "" {
 				host = job.DockerHost
 			}
+			name = trimContainerPrefixedJobName(name)
 			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:     name,
@@ -316,12 +317,41 @@ func splitHostPrefixedJobName(name string) (host, jobName string) {
 	return host, jobName
 }
 
+func trimContainerPrefixedJobName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	parts := strings.SplitN(trimmed, "::", 2)
+	if len(parts) != 2 {
+		return trimmed
+	}
+
+	jobName := strings.TrimSpace(parts[1])
+	if jobName == "" {
+		return trimmed
+	}
+
+	return jobName
+}
+
 func hostTitle(key string) string {
 	if key == localHostKey {
 		return "Local Host"
 	}
 
-	return fmt.Sprintf("Docker Host %s", key)
+	if idx := strings.LastIndex(key, "_"); idx > 0 && idx < len(key)-1 {
+		port := key[idx+1:]
+		allDigits := true
+		for _, ch := range port {
+			if ch < '0' || ch > '9' {
+				allDigits = false
+				break
+			}
+		}
+		if allDigits {
+			return fmt.Sprintf("%s:%s", key[:idx], port)
+		}
+	}
+
+	return key
 }
 
 func normalizeRefreshSeconds(refreshSeconds int) int {
@@ -381,8 +411,8 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
     .stat-running b { color: #3fb950; }
     main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
     .section-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-bottom: .75rem; }
-    .host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: .6rem; }
-    .host-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .9rem 1rem 1rem; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; display: block; }
+	.host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .8rem; }
+	.host-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.2rem 1.3rem 1.25rem; min-height: 110px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; display: block; }
     .host-card:hover { border-color: #3fb950; box-shadow: 0 2px 10px rgba(63,185,80,.12); }
     .card-name { font-size: .88rem; font-weight: 600; margin-bottom: .3rem; word-break: break-all; display: flex; align-items: center; gap: .35rem; }
     .status-dot { display: inline-block; width: 7px; height: 7px; background: #3fb950; border-radius: 50%; flex-shrink: 0; }
@@ -411,7 +441,6 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
       {{end}}
     </div>
   </main>
-  <footer>Ofelia Scheduler</footer>
 </body>
 </html>`))
 
@@ -487,6 +516,5 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
       {{end}}
     </div>
   </main>
-  <footer>Ofelia Scheduler</footer>
 </body>
 </html>`))
