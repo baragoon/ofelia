@@ -50,4 +50,4 @@ jobs:
           LOG_LEVEL: "${{ inputs.log-level || 'info' }}"
           RENOVATE_PRINT_CONFIG: "${{ inputs.print-config || 'false' }}"
         with:
-          token: '${{ github.token }}'
+          token: '${{ secrets.RENOVATE_TOKEN || github.token }}'
