@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/baragoon/ofelia/core"
 )
@@ -14,6 +16,9 @@ type DaemonCommand struct {
 	ConfigFile        string   `long:"config" description:"configuration file" default:"/etc/ofelia.conf"`
 	DockerLabelConfig bool     `short:"d" long:"docker" description:"continiously poll docker labels for configurations"`
 	DockerFilters     []string `short:"f" long:"docker-filter" description:"filter to select docker containers. https://docs.docker.com/reference/cli/docker/container/ls/#filter"`
+	WebUI             bool     `long:"ui" description:"enable built-in web UI for hosts and jobs"`
+	WebUIBind         string   `long:"ui-bind" description:"web UI bind address" default:":8080"`
+	WebUIRefreshSec   int      `long:"ui-refresh-sec" description:"web UI auto-refresh interval in seconds" default:"10"`
 	DockerHosts       []string `long:"docker-host" description:"docker host endpoint. Can be provided multiple times to schedule docker jobs on all hosts (e.g. tcp://host:2376)"`
 	DockerTLSVerify   bool     `long:"docker-tls-verify" description:"enable TLS verification for --docker-host connections"`
 	DockerCertPath    string   `long:"docker-cert-path" description:"path to docker TLS certs directory (contains ca.pem, cert.pem, key.pem)"`
@@ -21,6 +26,7 @@ type DaemonCommand struct {
 	DockerCert        string   `long:"docker-cert" description:"path to client certificate PEM file for docker TLS"`
 	DockerKey         string   `long:"docker-key" description:"path to client key PEM file for docker TLS"`
 	scheduler         *core.Scheduler
+	uiServer          *webUIServer
 	signals           chan os.Signal
 	done              chan bool
 	Logger            core.Logger
@@ -84,6 +90,10 @@ func (c *DaemonCommand) boot() (err error) {
 
 	c.scheduler = config.sh
 
+	if c.WebUI {
+		c.uiServer = newWebUIServer(c.WebUIBind, c.WebUIRefreshSec, config, c.Logger)
+	}
+
 	return err
 }
 
@@ -91,6 +101,13 @@ func (c *DaemonCommand) start() error {
 	c.setSignals()
 	if err := c.scheduler.Start(); err != nil {
 		return err
+	}
+
+	if c.uiServer != nil {
+		if err := c.uiServer.Start(); err != nil {
+			_ = c.scheduler.Stop()
+			return err
+		}
 	}
 
 	return nil
@@ -114,6 +131,15 @@ func (c *DaemonCommand) setSignals() {
 
 func (c *DaemonCommand) shutdown() error {
 	<-c.done
+
+	if c.uiServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := c.uiServer.Stop(ctx); err != nil {
+			c.Logger.Warningf("failed to stop web UI server: %v", err)
+		}
+	}
+
 	if !c.scheduler.IsRunning() {
 		return nil
 	}

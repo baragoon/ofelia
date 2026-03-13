@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/baragoon/ofelia/core"
 	"github.com/baragoon/ofelia/middlewares"
@@ -34,6 +35,7 @@ type Config struct {
 	sh            *core.Scheduler
 	dockerHandler *DockerHandler
 	logger        core.Logger
+	mu            sync.RWMutex
 }
 
 func NewConfig(logger core.Logger) *Config {
@@ -90,6 +92,9 @@ func (c *Config) InitializeApp() error {
 	}
 
 	c.fanOutDockerJobs()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	for name, j := range c.ExecJobs {
 		defaults.SetDefaults(j)
@@ -288,6 +293,8 @@ func cloneRunServiceJobConfigForHost(src *RunServiceConfig, host string) *RunSer
 }
 
 func (c *Config) JobsCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return len(c.ExecJobs) + len(c.RunJobs) + len(c.LocalJobs) + len(c.ServiceJobs)
 }
 
@@ -298,6 +305,9 @@ func (c *Config) buildSchedulerMiddlewares(sh *core.Scheduler) {
 }
 
 func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Get the current labels
 	var parsedLabelConfig Config
 	parsedLabelConfig.buildFromDockerLabels(labels)

@@ -81,7 +81,7 @@ func (s *SuiteConfig) TestExecJobBuild(c *C) {
 func (s *SuiteConfig) TestConfigIni(c *C) {
 	testcases := []struct {
 		Ini            string
-		ExpectedConfig Config
+		ExpectedConfig *Config
 		Comment        string
 	}{
 		{
@@ -90,7 +90,7 @@ func (s *SuiteConfig) TestConfigIni(c *C) {
 				schedule = @every 10s
 				command = echo \"foo\"
 				`,
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				ExecJobs: map[string]*ExecJobConfig{
 					"foo": {ExecJob: core.ExecJob{BareJob: core.BareJob{
 						Schedule: "@every 10s",
@@ -107,7 +107,7 @@ func (s *SuiteConfig) TestConfigIni(c *C) {
 				environment = "KEY1=value1"
 				Environment = "KEY2=value2"
 				`,
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				RunJobs: map[string]*RunJobConfig{
 					"foo": {RunJob: core.RunJob{BareJob: core.BareJob{
 						Schedule: "@every 10s",
@@ -125,7 +125,7 @@ func (s *SuiteConfig) TestConfigIni(c *C) {
 				volumes-from = "volume1"
 				volumes-from = "volume2"
 				`,
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				RunJobs: map[string]*RunJobConfig{
 					"foo": {RunJob: core.RunJob{BareJob: core.BareJob{
 						Schedule: "@every 10s",
@@ -142,8 +142,8 @@ func (s *SuiteConfig) TestConfigIni(c *C) {
 		conf := Config{}
 		err := gcfg.ReadStringInto(&conf, t.Ini)
 		c.Assert(err, IsNil)
-		if !c.Check(conf, DeepEquals, t.ExpectedConfig) {
-			c.Errorf("Test %q\nExpected %s, but got %s", t.Comment, toJSON(t.ExpectedConfig), toJSON(conf))
+		if !c.Check(&conf, DeepEquals, t.ExpectedConfig) {
+			c.Errorf("Test %q\nExpected %s, but got %s", t.Comment, toJSON(t.ExpectedConfig), toJSON(&conf))
 		}
 	}
 }
@@ -151,12 +151,12 @@ func (s *SuiteConfig) TestConfigIni(c *C) {
 func (s *SuiteConfig) TestLabelsConfig(c *C) {
 	testcases := []struct {
 		Labels         map[string]map[string]string
-		ExpectedConfig Config
+		ExpectedConfig *Config
 		Comment        string
 	}{
 		{
 			Labels:         map[string]map[string]string{},
-			ExpectedConfig: Config{},
+			ExpectedConfig: &Config{},
 			Comment:        "No labels, no config",
 		},
 		{
@@ -166,7 +166,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					"label2": "2",
 				},
 			},
-			ExpectedConfig: Config{},
+			ExpectedConfig: &Config{},
 			Comment:        "No required label, no config",
 		},
 		{
@@ -176,7 +176,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					"label2":      "2",
 				},
 			},
-			ExpectedConfig: Config{},
+			ExpectedConfig: &Config{},
 			Comment:        "No prefixed labels, no config",
 		},
 		{
@@ -186,7 +186,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobLocal + ".job1.schedule": "everyday! yey!",
 				},
 			},
-			ExpectedConfig: Config{},
+			ExpectedConfig: &Config{},
 			Comment:        "With prefixed labels, but without required label still no config",
 		},
 		{
@@ -199,7 +199,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobLocal + ".job2.command":  "ls -al *test*",
 				},
 			},
-			ExpectedConfig: Config{},
+			ExpectedConfig: &Config{},
 			Comment:        "No service label, no 'local' jobs",
 		},
 		{
@@ -224,7 +224,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobServiceRun + ".job6.command":  "command6",
 				},
 			},
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				LocalJobs: map[string]*LocalJobConfig{
 					"job1": {LocalJob: core.LocalJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
@@ -260,7 +260,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobExec + ".job2.command":  "command2",
 				},
 			},
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				ExecJobs: map[string]*ExecJobConfig{
 					"job1": {ExecJob: core.ExecJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
@@ -287,7 +287,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobExec + ".job1.no-overlap": "true",
 				},
 			},
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				ExecJobs: map[string]*ExecJobConfig{
 					"job1": {ExecJob: core.ExecJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
@@ -312,7 +312,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobRun + ".job2.volume":   `["/test/tmp:/test/tmp:ro", "/test/tmp:/test/tmp:rw"]`,
 				},
 			},
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				RunJobs: map[string]*RunJobConfig{
 					"job1": {RunJob: core.RunJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
@@ -345,7 +345,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobRun + ".job2.environment": `["KEY1=value1", "KEY2=value2"]`,
 				},
 			},
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				RunJobs: map[string]*RunJobConfig{
 					"job1": {RunJob: core.RunJob{BareJob: core.BareJob{
 						Schedule: "schedule1",
@@ -378,7 +378,7 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 					labelPrefix + "." + jobRun + ".job2.volumes-from": `["test321", "test456"]`,
 				},
 			},
-			ExpectedConfig: Config{
+			ExpectedConfig: &Config{
 				RunJobs: map[string]*RunJobConfig{
 					"job1": {
 						RunJob: core.RunJob{
@@ -408,8 +408,8 @@ func (s *SuiteConfig) TestLabelsConfig(c *C) {
 		var conf = Config{}
 		err := conf.buildFromDockerLabels(t.Labels)
 		c.Assert(err, IsNil)
-		if !c.Check(conf, DeepEquals, t.ExpectedConfig) {
-			c.Errorf("Test %q\nExpected %s, but got %s", t.Comment, toJSON(t.ExpectedConfig), toJSON(conf))
+		if !c.Check(&conf, DeepEquals, t.ExpectedConfig) {
+			c.Errorf("Test %q\nExpected %s, but got %s", t.Comment, toJSON(t.ExpectedConfig), toJSON(&conf))
 		}
 	}
 }

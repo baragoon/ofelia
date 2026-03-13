@@ -230,6 +230,27 @@ func (s *TestDockerSuit) TestExecJobMultilineCommandFromLabels(c *check.C) {
 	c.Assert(exec.ProcessConfig.Arguments, check.DeepEquals, []string{"-lc", "echo first-line\nprintf second-line"})
 }
 
+func (s *TestDockerSuit) TestExecJobNameIncludesContainerForRemoteHost(c *check.C) {
+	containersToStartWithLabels := []map[string]string{
+		{
+			requiredLabel: "true",
+			labelPrefix + "." + jobExec + ".datecron.schedule": "* * * * *",
+			labelPrefix + "." + jobExec + ".datecron.command":  "uname -a",
+		},
+	}
+
+	_, err := s.startTestContainersWithLabels(containersToStartWithLabels)
+	c.Assert(err, check.IsNil)
+
+	conf, err := buildFromDockerLabels()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(conf.ExecJobs), check.Equals, 1)
+
+	for name := range conf.ExecJobs {
+		c.Assert(strings.Contains(name, ":ofelia-test0:datecron"), check.Equals, true)
+	}
+}
+
 func (s *TestDockerSuit) startTestContainersWithLabels(containerLabels []map[string]string) ([]*docker.Container, error) {
 	containers := []*docker.Container{}
 

@@ -256,6 +256,29 @@ This repository includes manual `workflow_dispatch` workflows for end-to-end mul
 
 Run them from the Actions tab when you want a full integration check without waiting for normal CI triggers.
 
+### Web UI
+
+Ofelia can expose a lightweight built-in web UI showing:
+
+- Docker and local hosts discovered at startup
+- Jobs grouped by host
+
+Enable it with daemon flags:
+
+```sh
+ofelia daemon --config=/etc/ofelia.conf --ui --ui-bind=:8080 --ui-refresh-sec=10
+```
+
+Then open `http://localhost:8080`:
+
+- `/` lists hosts
+- `/hosts/<host-key>` lists jobs for a selected host
+
+Use `--ui-refresh-sec=<seconds>` to tune browser auto-refresh cadence.
+Label-driven changes discovered by `--docker` polling appear without restarting Ofelia.
+
+For local jobs, host key is `local`.
+
 ### Logging
 
 **Ofelia** comes with three different logging drivers:

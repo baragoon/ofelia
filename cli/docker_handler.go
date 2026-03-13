@@ -537,6 +537,9 @@ func (c *Config) buildFromDockerLabels(labels map[string]map[string]string) erro
 			hostJobName := jobName
 			if host != "" {
 				hostJobName = fmt.Sprintf("%s::%s", host, jobName)
+				if jobType == jobExec && !isServiceContainer {
+					hostJobName = fmt.Sprintf("%s:%s:%s", host, containerName, jobName)
+				}
 			}
 			switch {
 			case jobType == jobExec: // only job exec can be provided on the non-service container
