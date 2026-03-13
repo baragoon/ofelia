@@ -53,6 +53,28 @@ func TestTrimContainerPrefixedJobName(t *testing.T) {
 	}
 }
 
+func TestHostTitle(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "numeric suffix converts to port", input: "docker_3000", expected: "docker:3000"},
+		{name: "non numeric suffix unchanged", input: "docker_abc", expected: "docker_abc"},
+		{name: "local host title", input: "local", expected: "Local Host"},
+		{name: "leading underscore unchanged", input: "_3000", expected: "_3000"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := hostTitle(tc.input)
+			if got != tc.expected {
+				t.Errorf("hostTitle(%q): expected %q, got %q", tc.input, tc.expected, got)
+			}
+		})
+	}
+}
+
 func TestBuildWebUIStateGroupsJobsByHost(t *testing.T) {
 	config := NewConfig(&TestLogger{})
 	config.dockerHandler = &DockerHandler{}
