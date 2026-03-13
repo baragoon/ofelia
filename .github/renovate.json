@@ -9,6 +9,7 @@
   "dependencyDashboard": true,
   "dependencyDashboardApproval": false,
   "prCreation": "immediate",
+  "prHourlyLimit": 0,
   "rebaseWhen": "behind-base-branch",
   "prConcurrentLimit": 10,
   "packageRules": [
@@ -16,7 +17,9 @@
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "github-actions"
+      "groupName": "github-actions",
+      "dependencyDashboardApproval": false,
+      "prCreation": "immediate"
     },
     {
       "matchPackageNames": [
