@@ -7,6 +7,7 @@
     "dependencies"
   ],
   "dependencyDashboard": true,
+  "dependencyDashboardApproval": false,
   "prCreation": "immediate",
   "rebaseWhen": "behind-base-branch",
   "prConcurrentLimit": 10,
