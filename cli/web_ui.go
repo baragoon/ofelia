@@ -23,19 +23,25 @@ type webUIJob struct {
 	Schedule string
 	Command  string
 	Target   string
+	NextRun  time.Time
+	LastRun  time.Time
+	Running  bool
 }
 
 type webUIHost struct {
-	Key      string
-	Title    string
-	Jobs     []webUIJob
-	JobCount int
+	Key          string
+	Title        string
+	Jobs         []webUIJob
+	JobCount     int
+	RunningCount int
+	NextRun      time.Time
 }
 
 type webUIState struct {
-	Hosts      []webUIHost
-	TotalHosts int
-	TotalJobs  int
+	Hosts        []webUIHost
+	TotalHosts   int
+	TotalJobs    int
+	TotalRunning int
 }
 
 type webUIHostsPage struct {
@@ -158,6 +164,15 @@ func buildWebUIState(config *Config) webUIState {
 		defer config.mu.RUnlock()
 	}
 
+	// Build a timing map from the scheduler's live cron entries.
+	type cronTiming struct{ next, prev time.Time }
+	timings := map[int]cronTiming{}
+	if config != nil && config.sh != nil {
+		for _, e := range config.sh.CronJobs() {
+			timings[int(e.ID)] = cronTiming{next: e.Next, prev: e.Prev}
+		}
+	}
+
 	if config != nil && config.dockerHandler != nil {
 		for hostKey := range config.dockerHandler.GetInternalDockerClients() {
 			_ = getHost(hostKey)
@@ -170,13 +185,16 @@ func buildWebUIState(config *Config) webUIState {
 			if strings.TrimSpace(job.DockerHost) != "" {
 				host = job.DockerHost
 			}
-
+			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:     name,
 				Type:     "exec",
 				Schedule: job.Schedule,
 				Command:  job.Command,
 				Target:   job.Container,
+				NextRun:  t.next,
+				LastRun:  t.prev,
+				Running:  job.Running() > 0,
 			})
 		}
 
@@ -185,18 +203,20 @@ func buildWebUIState(config *Config) webUIState {
 			if strings.TrimSpace(job.DockerHost) != "" {
 				host = job.DockerHost
 			}
-
 			target := strings.TrimSpace(job.Image)
 			if target == "" {
 				target = strings.TrimSpace(job.Container)
 			}
-
+			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:     name,
 				Type:     "run",
 				Schedule: job.Schedule,
 				Command:  job.Command,
 				Target:   target,
+				NextRun:  t.next,
+				LastRun:  t.prev,
+				Running:  job.Running() > 0,
 			})
 		}
 
@@ -205,29 +225,37 @@ func buildWebUIState(config *Config) webUIState {
 			if strings.TrimSpace(job.DockerHost) != "" {
 				host = job.DockerHost
 			}
-
+			t := timings[job.GetCronJobID()]
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:     name,
 				Type:     "service-run",
 				Schedule: job.Schedule,
 				Command:  job.Command,
 				Target:   job.Image,
+				NextRun:  t.next,
+				LastRun:  t.prev,
+				Running:  job.Running() > 0,
 			})
 		}
 
 		for jobName, job := range config.LocalJobs {
+			t := timings[job.GetCronJobID()]
 			getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, webUIJob{
 				Name:     jobName,
 				Type:     "local",
 				Schedule: job.Schedule,
 				Command:  job.Command,
 				Target:   job.Dir,
+				NextRun:  t.next,
+				LastRun:  t.prev,
+				Running:  job.Running() > 0,
 			})
 		}
 	}
 
 	hostList := make([]webUIHost, 0, len(hosts))
 	totalJobs := 0
+	totalRunning := 0
 	for _, host := range hosts {
 		sort.Slice(host.Jobs, func(i, j int) bool {
 			if host.Jobs[i].Name != host.Jobs[j].Name {
@@ -236,6 +264,15 @@ func buildWebUIState(config *Config) webUIState {
 			return host.Jobs[i].Type < host.Jobs[j].Type
 		})
 		host.JobCount = len(host.Jobs)
+		for _, j := range host.Jobs {
+			if j.Running {
+				host.RunningCount++
+				totalRunning++
+			}
+			if !j.NextRun.IsZero() && (host.NextRun.IsZero() || j.NextRun.Before(host.NextRun)) {
+				host.NextRun = j.NextRun
+			}
+		}
 		totalJobs += len(host.Jobs)
 		hostList = append(hostList, *host)
 	}
@@ -251,9 +288,10 @@ func buildWebUIState(config *Config) webUIState {
 	})
 
 	return webUIState{
-		Hosts:      hostList,
-		TotalHosts: len(hostList),
-		TotalJobs:  totalJobs,
+		Hosts:        hostList,
+		TotalHosts:   len(hostList),
+		TotalJobs:    totalJobs,
+		TotalRunning: totalRunning,
 	}
 }
 
@@ -294,232 +332,161 @@ func normalizeRefreshSeconds(refreshSeconds int) int {
 	return refreshSeconds
 }
 
-var hostsTemplate = template.Must(template.New("hosts").Parse(`<!doctype html>
+var templateFuncMap = template.FuncMap{
+	"notZero": func(t time.Time) bool { return !t.IsZero() },
+	"fmtTime": func(t time.Time) string {
+		if t.IsZero() {
+			return "—"
+		}
+		return t.Format("Jan 2, 15:04:05")
+	},
+	"relNext": func(t time.Time) string {
+		if t.IsZero() {
+			return "—"
+		}
+		d := time.Until(t)
+		if d <= 0 {
+			return "overdue"
+		}
+		if d < time.Minute {
+			return fmt.Sprintf("%ds", int(d.Seconds()))
+		}
+		if d < time.Hour {
+			return fmt.Sprintf("%dm", int(d.Minutes()))
+		}
+		h := int(d.Hours())
+		m := int(d.Minutes()) % 60
+		if m == 0 {
+			return fmt.Sprintf("%dh", h)
+		}
+		return fmt.Sprintf("%dh %dm", h, m)
+	},
+}
+
+var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).Parse(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
-  <title>Ofelia Hosts</title>
+  <title>Ofelia</title>
   <style>
-    :root {
-      color-scheme: light;
-      --bg: #f5f8f2;
-      --text: #1f2a1f;
-      --surface: #ffffff;
-      --accent: #1f7a57;
-      --accent-soft: #e6f4ed;
-      --muted: #6b7a6f;
-      --border: #d5e1d8;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background:
-        radial-gradient(circle at top right, #e9f5da 0%, transparent 40%),
-        radial-gradient(circle at bottom left, #d8f0f0 0%, transparent 35%),
-        var(--bg);
-    }
-    .wrap {
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 2rem 1rem 3rem;
-    }
-    .hero {
-      background: linear-gradient(135deg, #ffffff, #f0f8f2);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 1.2rem 1.4rem;
-      margin-bottom: 1rem;
-    }
-    .hero h1 {
-      margin: 0;
-      font-size: 1.4rem;
-    }
-    .meta {
-      margin-top: .4rem;
-      color: var(--muted);
-      font-size: .95rem;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-      gap: .8rem;
-      margin-top: 1rem;
-    }
-    .card {
-      display: block;
-      text-decoration: none;
-      color: inherit;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: var(--surface);
-      padding: 1rem;
-      transition: transform .12s ease, box-shadow .12s ease;
-    }
-    .card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(31, 122, 87, .1);
-      border-color: #b7d7c3;
-    }
-    .title {
-      margin: 0 0 .3rem;
-      font-weight: 700;
-      font-size: 1rem;
-      word-break: break-word;
-    }
-    .count {
-      margin: 0;
-      color: var(--muted);
-      font-size: .95rem;
-    }
-    .badge {
-      display: inline-block;
-      margin-top: .6rem;
-      font-size: .8rem;
-      color: var(--accent);
-      background: var(--accent-soft);
-      border-radius: 999px;
-      padding: .2rem .6rem;
-      font-weight: 600;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #1a1f36; min-height: 100vh; }
+    header { background: #0d1117; color: #fff; padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
+    .brand-dot { color: #3fb950; font-size: 1.1rem; }
+    .brand { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
+    .stats-bar { margin-left: auto; display: flex; gap: 1.25rem; font-size: .8rem; color: rgba(255,255,255,.5); align-items: center; }
+    .stats-bar b { color: #fff; }
+    .stat-running b { color: #3fb950; }
+    main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
+    .section-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-bottom: .75rem; }
+    .host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: .6rem; }
+    .host-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .9rem 1rem 1rem; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; display: block; }
+    .host-card:hover { border-color: #3fb950; box-shadow: 0 2px 10px rgba(63,185,80,.12); }
+    .card-name { font-size: .88rem; font-weight: 600; margin-bottom: .3rem; word-break: break-all; display: flex; align-items: center; gap: .35rem; }
+    .status-dot { display: inline-block; width: 7px; height: 7px; background: #3fb950; border-radius: 50%; flex-shrink: 0; }
+    .card-info { font-size: .78rem; color: #6b7280; }
+    footer { text-align: center; font-size: .75rem; color: #9ca3af; margin-top: 2.5rem; }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <h1>Ofelia Scheduler UI</h1>
-      <p class="meta">Hosts: {{.TotalHosts}} · Jobs: {{.TotalJobs}}</p>
-    </section>
-    <section class="grid">
+  <header>
+    <span class="brand-dot">⬡</span>
+    <span class="brand">Ofelia</span>
+    <div class="stats-bar">
+      <div><b>{{.TotalJobs}}</b> total jobs</div>
+      <div><b>{{.TotalHosts}}</b> hosts</div>
+      {{if .TotalRunning}}<div class="stat-running"><b>{{.TotalRunning}}</b> running</div>{{end}}
+    </div>
+  </header>
+  <main>
+    <p class="section-label">Docker Hosts</p>
+    <div class="host-grid">
       {{range .Hosts}}
-      <a class="card" href="/hosts/{{.Key}}">
-        <h2 class="title">{{.Title}}</h2>
-        <p class="count">{{.JobCount}} job(s)</p>
-        <span class="badge">Open Jobs</span>
+      <a class="host-card" href="/hosts/{{.Key}}">
+        <div class="card-name"><span class="status-dot"></span>{{.Title}}</div>
+        <div class="card-info">{{.JobCount}} job{{if ne .JobCount 1}}s{{end}}{{if .RunningCount}} &middot; <b>{{.RunningCount}} running</b>{{end}}</div>
       </a>
       {{end}}
-    </section>
+    </div>
   </main>
+  <footer>Ofelia Scheduler</footer>
 </body>
 </html>`))
 
-var hostJobsTemplate = template.Must(template.New("host-jobs").Parse(`<!doctype html>
+var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFuncMap).Parse(`<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
-  <title>{{.Title}} Jobs</title>
+  <title>Ofelia &mdash; {{.Title}}</title>
   <style>
-    :root {
-      color-scheme: light;
-      --bg: #f7f7fb;
-      --text: #1f2030;
-      --surface: #ffffff;
-      --accent: #0f766e;
-      --border: #d8dcec;
-      --muted: #5f6475;
-      --chip: #eef6f5;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: var(--text);
-      background:
-        linear-gradient(180deg, #edf2fa, #f8fafc 25%),
-        var(--bg);
-    }
-    .wrap {
-      max-width: 1050px;
-      margin: 0 auto;
-      padding: 2rem 1rem 3rem;
-    }
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: .8rem;
-      gap: .8rem;
-      flex-wrap: wrap;
-    }
-    .topbar a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .panel {
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      overflow: hidden;
-      background: var(--surface);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      padding: .72rem .8rem;
-      border-bottom: 1px solid var(--border);
-      text-align: left;
-      vertical-align: top;
-      font-size: .92rem;
-      word-break: break-word;
-    }
-    thead th {
-      background: #f4f7fb;
-      font-size: .78rem;
-      letter-spacing: .03em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-    tbody tr:hover { background: #fafcfe; }
-    .chip {
-      background: var(--chip);
-      color: var(--accent);
-      font-size: .78rem;
-      border-radius: 999px;
-      padding: .12rem .55rem;
-      font-weight: 700;
-    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #1a1f36; min-height: 100vh; }
+    header { background: #0d1117; color: #fff; padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
+    .brand-dot { color: #3fb950; font-size: 1.1rem; }
+    .brand { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
+    .stats-bar { margin-left: auto; display: flex; gap: 1.25rem; font-size: .8rem; color: rgba(255,255,255,.5); align-items: center; }
+    .stats-bar b { color: #fff; }
+    .stat-running b { color: #3fb950; }
+    main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
+    .back { display: inline-flex; align-items: center; gap: .3rem; text-decoration: none; color: #6b7280; font-size: .82rem; margin-bottom: .9rem; }
+    .back:hover { color: #3fb950; }
+    .host-title { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; color: #1a1f36; }
+    .job-list { display: flex; flex-direction: column; gap: .45rem; }
+    .job-row { background: #fff; border: 1px solid #e5e7eb; border-left: 3px solid #3fb950; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
+    .job-row.is-running { border-left-color: #1a7f37; }
+    .job-schedule { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .76rem; background: #f0f4f8; border: 1px solid #dee2e6; border-radius: 4px; padding: .22rem .55rem; white-space: nowrap; color: #3d4f60; align-self: start; margin-top: .1rem; }
+    .job-body { min-width: 0; }
+    .job-name { font-weight: 600; font-size: .9rem; margin-bottom: .15rem; word-break: break-word; }
+    .job-target { font-size: .78rem; color: #6b7280; margin-bottom: .1rem; }
+    .job-cmd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .75rem; color: #8b949e; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .job-meta { margin-top: .4rem; display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .76rem; color: #6b7280; }
+    .lbl { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-right: .3rem; }
+    .lbl-next { color: #3fb950; }
+    .job-badges { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; align-self: start; padding-top: .1rem; }
+    .badge { display: inline-block; font-size: .68rem; font-weight: 600; border-radius: 99px; padding: .15rem .55rem; white-space: nowrap; }
+    .badge-type { background: #f3f4f6; color: #4b5563; }
+    .badge-running { background: #dcfce7; color: #166534; }
+    footer { text-align: center; font-size: .75rem; color: #9ca3af; margin-top: 2.5rem; }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="topbar">
-      <div>
-        <h1>{{.Title}}</h1>
-        <p>{{.JobCount}} job(s)</p>
-      </div>
-      <a href="/">Back to hosts</a>
+  <header>
+    <span class="brand-dot">⬡</span>
+    <span class="brand">Ofelia</span>
+    <div class="stats-bar">
+      <div><b>{{.JobCount}}</b> job{{if ne .JobCount 1}}s{{end}}</div>
+      {{if .RunningCount}}<div class="stat-running"><b>{{.RunningCount}}</b> running</div>{{end}}
+      {{if notZero .NextRun}}<div>next: <b>{{fmtTime .NextRun}}</b></div>{{end}}
     </div>
-    <section class="panel">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Schedule</th>
-            <th>Target</th>
-            <th>Command</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Jobs}}
-          <tr>
-            <td>{{.Name}}</td>
-            <td><span class="chip">{{.Type}}</span></td>
-            <td>{{.Schedule}}</td>
-            <td>{{.Target}}</td>
-            <td>{{.Command}}</td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </section>
+  </header>
+  <main>
+    <a class="back" href="/">&#8592; All hosts</a>
+    <div class="host-title">{{.Title}}</div>
+    <div class="job-list">
+      {{range .Jobs}}
+      <div class="job-row{{if .Running}} is-running{{end}}">
+        <code class="job-schedule">{{.Schedule}}</code>
+        <div class="job-body">
+          <div class="job-name">{{.Name}}</div>
+          {{if .Target}}<div class="job-target">{{.Target}}</div>{{end}}
+          {{if .Command}}<div class="job-cmd">{{.Command}}</div>{{end}}
+          <div class="job-meta">
+            <span><span class="lbl lbl-next">Next Run</span>{{if notZero .NextRun}}{{relNext .NextRun}} &middot; {{fmtTime .NextRun}}{{else}}&mdash;{{end}}</span>
+            <span><span class="lbl">Last Run</span>{{if notZero .LastRun}}{{fmtTime .LastRun}}{{else}}&mdash;{{end}}</span>
+          </div>
+        </div>
+        <div class="job-badges">
+          {{if .Running}}<span class="badge badge-running">RUNNING</span>{{end}}
+          <span class="badge badge-type">{{.Type}}</span>
+        </div>
+      </div>
+      {{end}}
+    </div>
   </main>
+  <footer>Ofelia Scheduler</footer>
 </body>
 </html>`))
