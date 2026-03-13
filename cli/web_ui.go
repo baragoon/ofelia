@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"net"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/baragoon/ofelia/core"
 )
@@ -64,17 +66,27 @@ func newWebUIServer(bind string, refreshSeconds int, config *Config, logger core
 	mux.HandleFunc("/hosts/", h.handleHostJobs)
 
 	h.server = &http.Server{
-		Addr:    bind,
-		Handler: mux,
+		Addr:              bind,
+		Handler:           mux,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       30 * time.Second,
 	}
 
 	return h
 }
 
 func (s *webUIServer) Start() error {
+	listener, err := net.Listen("tcp", s.server.Addr)
+	if err != nil {
+		s.logger.Errorf("web UI server failed to bind on %s: %v", s.server.Addr, err)
+		return err
+	}
+
 	s.logger.Noticef("Web UI listening on %s", s.server.Addr)
 	go func() {
-		if err := s.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := s.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Errorf("web UI server stopped with error: %v", err)
 		}
 	}()

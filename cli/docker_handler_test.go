@@ -247,7 +247,7 @@ func (s *TestDockerSuit) TestExecJobNameIncludesContainerForRemoteHost(c *check.
 	c.Assert(len(conf.ExecJobs), check.Equals, 1)
 
 	for name := range conf.ExecJobs {
-		c.Assert(strings.Contains(name, ":ofelia-test0:datecron"), check.Equals, true)
+		c.Assert(strings.Contains(name, "::ofelia-test0::datecron"), check.Equals, true)
 	}
 }
 
