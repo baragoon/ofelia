@@ -14,14 +14,6 @@
   "prConcurrentLimit": 10,
   "packageRules": [
     {
-      "matchManagers": [
-        "github-actions"
-      ],
-      "groupName": "github-actions",
-      "dependencyDashboardApproval": false,
-      "prCreation": "immediate"
-    },
-    {
       "matchPackageNames": [
         "github.com/fsouza/go-dockerclient"
       ],
@@ -36,11 +28,7 @@
       ],
       "groupName": "all non-major dependencies",
       "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
+      "automergeType": "pr"
     }
-  ],
-  "baseBranchPatterns": [
-    "master"
   ]
 }
