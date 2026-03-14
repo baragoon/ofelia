@@ -107,8 +107,17 @@ func (w *jobWrapper) start(ctx *Context) {
 	ctx.Log("Started - " + ctx.Job.GetCommand())
 }
 
+// lastExecSetter is satisfied by BareJob (and therefore all concrete job types).
+type lastExecSetter interface {
+	SetLastExecution(*Execution)
+}
+
 func (w *jobWrapper) stop(ctx *Context, err error) {
 	ctx.Stop(err)
+
+	if setter, ok := w.j.(lastExecSetter); ok {
+		setter.SetLastExecution(ctx.Execution)
+	}
 
 	errText := "none"
 	if ctx.Execution.Error != nil {

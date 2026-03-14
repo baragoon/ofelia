@@ -57,3 +57,20 @@ func (j *BareJob) Hash() uint64 {
 	hash, _ := hashstructure.Hash(j, nil)
 	return hash
 }
+
+// GetLastExecution returns the most recent execution, or nil if the job has never run.
+func (j *BareJob) GetLastExecution() *Execution {
+	j.lock.Lock()
+	defer j.lock.Unlock()
+	if len(j.history) == 0 {
+		return nil
+	}
+	return j.history[0]
+}
+
+// SetLastExecution stores e as the single retained execution record.
+func (j *BareJob) SetLastExecution(e *Execution) {
+	j.lock.Lock()
+	defer j.lock.Unlock()
+	j.history = []*Execution{e}
+}
