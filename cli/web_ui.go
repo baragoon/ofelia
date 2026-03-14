@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"net"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -27,6 +28,75 @@ type webUIJob struct {
 	NextRun          time.Time
 	LastRun          time.Time
 	Running          bool
+	// LastOutput is the masked combined stdout+stderr of the most recent execution.
+	// Empty when the job has never run.
+	LastOutput string
+	// LastExitOK is nil when the job has never run, true when it succeeded, false when it failed.
+	LastExitOK *bool
+}
+
+// secretEqRe masks assignment-style secrets: key=value (env vars, URL params).
+// Value is matched up to the next whitespace or common delimiter.
+var secretEqRe = regexp.MustCompile(
+	`(?i)\b((?:api[_\-]?key|password|passwd|secret|token)\s*=\s*)([^\s,;&|"'\n]+)`,
+)
+
+// secretHdrRe masks HTTP-header-style secrets: "Key: value" (rest of line is the value).
+var secretHdrRe = regexp.MustCompile(
+	`(?im)\b((?:api[_\-]?key|authorization|x-auth-token|x-api-key|token)\s*:\s*)([^\n"']+)`,
+)
+
+// maskSecrets replaces the value portion of recognized secret patterns with ***.
+func maskSecrets(s string) string {
+	s = secretEqRe.ReplaceAllString(s, "${1}***")
+	s = secretHdrRe.ReplaceAllString(s, "${1}***")
+	return s
+}
+
+// httpStatusRe matches the status code in an HTTP response line, e.g. "HTTP/1.1 404 Not Found".
+var httpStatusRe = regexp.MustCompile(`(?m)^HTTP/\S+\s+(\d{3})`)
+
+// outputContainsHTTPFailure returns true if the output contains at least one
+// HTTP response line whose status code is NOT in the 2xx range.
+func outputContainsHTTPFailure(output string) bool {
+	for _, m := range httpStatusRe.FindAllStringSubmatch(output, -1) {
+		if len(m) >= 2 && (m[1][0] != '2') {
+			return true
+		}
+	}
+	return false
+}
+
+// lastExecProvider is satisfied by every concrete job type (they all embed BareJob).
+type lastExecProvider interface {
+	GetLastExecution() *core.Execution
+}
+
+// lastRunFields extracts the last-run time, success flag, and masked output for any job.
+// exitOK is nil when the job has never run.
+func lastRunFields(p lastExecProvider) (lastRun time.Time, exitOK *bool, output string) {
+	exec := p.GetLastExecution()
+	if exec == nil {
+		return
+	}
+	lastRun = exec.Date
+	ok := !exec.Failed && !exec.Skipped
+	if ok {
+		combined := exec.OutputStream.String() + exec.ErrorStream.String()
+		if outputContainsHTTPFailure(combined) {
+			ok = false
+		}
+	}
+	exitOK = &ok
+	raw := exec.OutputStream.String()
+	if errOut := exec.ErrorStream.String(); errOut != "" {
+		if raw != "" {
+			raw += "\n--- stderr ---\n"
+		}
+		raw += errOut
+	}
+	output = maskSecrets(raw)
+	return
 }
 
 type webUIHost struct {
@@ -189,16 +259,19 @@ func buildWebUIState(config *Config) webUIState {
 			}
 			name = trimContainerPrefixedJobName(name)
 			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.ExecJob.BareJob)
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:             name,
 				Type:             "exec",
 				Schedule:         job.Schedule,
-				Command:          job.Command,
+				Command:          maskSecrets(job.Command),
 				MultilineCommand: isMultilineCommand(job.Command),
 				Target:           job.Container,
 				NextRun:          t.next,
-				LastRun:          t.prev,
+				LastRun:          lr,
 				Running:          job.Running() > 0,
+				LastOutput:       lout,
+				LastExitOK:       exitOK,
 			})
 		}
 
@@ -212,16 +285,19 @@ func buildWebUIState(config *Config) webUIState {
 				target = strings.TrimSpace(job.Container)
 			}
 			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.RunJob.BareJob)
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:             name,
 				Type:             "run",
 				Schedule:         job.Schedule,
-				Command:          job.Command,
+				Command:          maskSecrets(job.Command),
 				MultilineCommand: isMultilineCommand(job.Command),
 				Target:           target,
 				NextRun:          t.next,
-				LastRun:          t.prev,
+				LastRun:          lr,
 				Running:          job.Running() > 0,
+				LastOutput:       lout,
+				LastExitOK:       exitOK,
 			})
 		}
 
@@ -231,31 +307,37 @@ func buildWebUIState(config *Config) webUIState {
 				host = job.DockerHost
 			}
 			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.RunServiceJob.BareJob)
 			getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
 				Name:             name,
 				Type:             "service-run",
 				Schedule:         job.Schedule,
-				Command:          job.Command,
+				Command:          maskSecrets(job.Command),
 				MultilineCommand: isMultilineCommand(job.Command),
 				Target:           job.Image,
 				NextRun:          t.next,
-				LastRun:          t.prev,
+				LastRun:          lr,
 				Running:          job.Running() > 0,
+				LastOutput:       lout,
+				LastExitOK:       exitOK,
 			})
 		}
 
 		for jobName, job := range config.LocalJobs {
 			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.LocalJob.BareJob)
 			getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, webUIJob{
 				Name:             jobName,
 				Type:             "local",
 				Schedule:         job.Schedule,
-				Command:          job.Command,
+				Command:          maskSecrets(job.Command),
 				MultilineCommand: isMultilineCommand(job.Command),
 				Target:           job.Dir,
 				NextRun:          t.next,
-				LastRun:          t.prev,
+				LastRun:          lr,
 				Running:          job.Running() > 0,
+				LastOutput:       lout,
+				LastExitOK:       exitOK,
 			})
 		}
 	}
@@ -410,6 +492,17 @@ var templateFuncMap = template.FuncMap{
 		}
 		return fmt.Sprintf("%dh %dm", h, m)
 	},
+	// statusClass returns the CSS modifier class for a job row based on last run result.
+	// nil = never run (grey), true = success (green), false = failed (red).
+	"statusClass": func(exitOK *bool) string {
+		if exitOK == nil {
+			return ""
+		}
+		if *exitOK {
+			return " last-ok"
+		}
+		return " last-fail"
+	},
 }
 
 var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).Parse(`<!doctype html>
@@ -490,7 +583,9 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
 	.expand-all-btn:hover { border-color: #86efac; background: #dcfce7; }
 	.expand-all-btn:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
     .job-list { display: flex; flex-direction: column; gap: .45rem; }
-    .job-row { background: #fff; border: 1px solid #e5e7eb; border-left: 3px solid #3fb950; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
+    .job-row { background: #fff; border: 1px solid #e5e7eb; border-left: 3px solid #9ca3af; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
+    .job-row.last-ok { border-left-color: #3fb950; }
+    .job-row.last-fail { border-left-color: #f85149; }
     .job-row.is-running { border-left-color: #1a7f37; }
     .job-schedule { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .76rem; background: #f0f4f8; border: 1px solid #dee2e6; border-radius: 4px; padding: .22rem .55rem; white-space: nowrap; color: #3d4f60; align-self: start; margin-top: .1rem; }
     .job-body { min-width: 0; }
@@ -505,6 +600,8 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
     .job-meta { margin-top: .4rem; display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .76rem; color: #6b7280; }
     .lbl { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-right: .3rem; }
     .lbl-next { color: #3fb950; }
+    .last-run-info { cursor: default; border-bottom: 1px dashed #9ca3af; }
+    .last-run-info[title] { cursor: help; border-bottom-style: dotted; }
     .job-badges { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; align-self: start; padding-top: .1rem; }
     .badge { display: inline-block; font-size: .68rem; font-weight: 600; border-radius: 99px; padding: .15rem .55rem; white-space: nowrap; }
     .badge-type { background: #f3f4f6; color: #4b5563; }
@@ -532,7 +629,7 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
 		{{end}}
     <div class="job-list">
 			{{range $idx, $job := .Jobs}}
-			<div class="job-row{{if $job.Running}} is-running{{end}}">
+			<div class="job-row{{if $job.Running}} is-running{{else}}{{statusClass $job.LastExitOK}}{{end}}">
 				<code class="job-schedule">{{$job.Schedule}}</code>
         <div class="job-body">
 					<div class="job-name">{{$job.Name}}</div>
@@ -547,7 +644,7 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
 					{{end}}
           <div class="job-meta">
 						<span><span class="lbl lbl-next">Next Run</span>{{if notZero $job.NextRun}}{{relNext $job.NextRun}} &middot; {{fmtTime $job.NextRun}}{{else}}&mdash;{{end}}</span>
-						<span><span class="lbl">Last Run</span>{{if notZero $job.LastRun}}{{fmtTime $job.LastRun}}{{else}}&mdash;{{end}}</span>
+						<span><span class="lbl">Last Run</span>{{if notZero $job.LastRun}}<span class="last-run-info"{{if $job.LastOutput}} title="{{$job.LastOutput}}"{{end}}>{{fmtTime $job.LastRun}}</span>{{else}}&mdash;{{end}}</span>
           </div>
         </div>
         <div class="job-badges">
