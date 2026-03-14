@@ -634,14 +634,12 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
         <div class="job-body">
 					<div class="job-name">{{$job.Name}}</div>
 					{{if $job.Target}}<div class="job-target">{{$job.Target}}</div>{{end}}
-					{{if $job.Command}}
-					<div class="job-cmd-wrap">
-						<div id="cmd-{{$idx}}" class="job-cmd{{if not $job.MultilineCommand}} expanded{{end}}">{{$job.Command}}</div>
-						{{if $job.MultilineCommand}}
-						<button type="button" class="cmd-expand-btn" data-target="cmd-{{$idx}}" data-expanded="false" aria-expanded="false">Expand command</button>
+						{{if $job.Command}}
+						<div class="job-cmd-wrap">
+							<div id="cmd-{{$idx}}" class="job-cmd">{{$job.Command}}</div>
+							<button type="button" class="cmd-expand-btn" data-target="cmd-{{$idx}}" data-expanded="false" aria-expanded="false">Expand command</button>
+						</div>
 						{{end}}
-					</div>
-					{{end}}
           <div class="job-meta">
 						<span><span class="lbl lbl-next">Next Run</span>{{if notZero $job.NextRun}}{{relNext $job.NextRun}} &middot; {{fmtTime $job.NextRun}}{{else}}&mdash;{{end}}</span>
 						<span><span class="lbl">Last Run</span>{{if notZero $job.LastRun}}<span class="last-run-info"{{if $job.LastOutput}} title="{{$job.LastOutput}}"{{end}}>{{fmtTime $job.LastRun}}</span>{{else}}&mdash;{{end}}</span>
