@@ -5,6 +5,7 @@ go 1.25.0
 toolchain go1.26.1
 
 require (
+	github.com/alexedwards/argon2id v1.0.0
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625
 	github.com/docker/docker v28.5.2+incompatible
@@ -48,7 +49,8 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )

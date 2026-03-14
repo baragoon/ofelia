@@ -287,6 +287,52 @@ CLI flags keep precedence when explicitly set (non-default values).
 
 For local jobs, host key is `local`.
 
+---
+
+### Web UI Password Protection (Argon2id)
+
+Ofelia's web UI can be protected with strong password authentication using Argon2id hashing. To enable password protection:
+
+1. **Generate a strong password hash:**
+
+   Use the provided CLI tool to generate an Argon2id hash for your password (minimum 12 characters):
+
+   ```sh
+   go run ./cmd/gen_webui_password.go
+   ```
+
+   Enter your password when prompted. The tool will output a hash string.
+
+2. **Set the hash as an environment variable:**
+
+   Set the following environment variable when running Ofelia:
+
+   ```sh
+   export OFELIA_WEBUI_PASSWORD_HASH="<your-argon2id-hash>"
+   ```
+
+   Or in Docker/Compose:
+
+   ```yaml
+   environment:
+     OFELIA_WEBUI_PASSWORD_HASH: "<your-argon2id-hash>"
+   ```
+
+3. **Access the UI:**
+
+   - Username: `ofelia`
+   - Password: (the password you used to generate the hash)
+
+> **Fallback:**
+> If `OFELIA_WEBUI_PASSWORD_HASH` is not set, the web UI will allow login with default credentials:
+>
+> - Username: `ofelia`
+> - Password: `ofelia`
+>
+> For production, always set a strong password hash to disable the default credentials.
+
+---
+
 ### Logging
 
 **Ofelia** comes with three different logging drivers:

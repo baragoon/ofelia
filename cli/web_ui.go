@@ -139,18 +139,22 @@ func newWebUIServer(bind string, refreshSeconds int, config *Config, logger core
 		config:         config,
 		refreshSeconds: normalizeRefreshSeconds(refreshSeconds),
 	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", h.handleHosts)
 	mux.HandleFunc("/hosts/", h.handleHostJobs)
 
-	h.server = &http.Server{
-		Addr:              bind,
-		Handler:           mux,
-		ReadTimeout:       10 * time.Second,
-		ReadHeaderTimeout: 5 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       30 * time.Second,
-	}
+	// Wrap with password protection middleware
+	protected := RequireWebUIAuth(mux)
+
+	       h.server = &http.Server{
+		       Addr:              bind,
+		       Handler:           protected,
+		       ReadTimeout:       10 * time.Second,
+		       ReadHeaderTimeout: 5 * time.Second,
+		       WriteTimeout:      15 * time.Second,
+		       IdleTimeout:       30 * time.Second,
+	       }
 
 	return h
 }
