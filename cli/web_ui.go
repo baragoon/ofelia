@@ -506,43 +506,73 @@ var templateFuncMap = template.FuncMap{
 }
 
 var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).Parse(`<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="auto">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
 	<link rel="icon" type="image/gif" href="https://camo.githubusercontent.com/7f2c551d2a3c6af164a47b2d87599cd085404668b3249fecb774b33dbfd4504b/68747470733a2f2f776569726473706163652e646b2f4672616e636973636f4962616e657a2f47726170686963732f4f66656c69612e676966">
   <title>Ofelia</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #1a1f36; min-height: 100vh; }
-    header { background: #0d1117; color: #fff; padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
-    .brand-dot { color: #3fb950; font-size: 1.1rem; }
-    .brand { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
-    .stats-bar { margin-left: auto; display: flex; gap: 1.25rem; font-size: .8rem; color: rgba(255,255,255,.5); align-items: center; }
-    .stats-bar b { color: #fff; }
-    .stat-running b { color: #3fb950; }
-    main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
-    .section-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-bottom: .75rem; }
+	<style>
+		:root {
+			--bg: #f0f2f5;
+			--fg: #1a1f36;
+			--header-bg: #0d1117;
+			--header-fg: #fff;
+			--card-bg: #fff;
+			--card-border: #e5e7eb;
+			--ok: #3fb950;
+			--fail: #f85149;
+			--running: #1a7f37;
+		}
+		[data-theme="dark"] {
+			--bg: #181a1b;
+			--fg: #e5e7eb;
+			--header-bg: #23272e;
+			--header-fg: #fff;
+			--card-bg: #23272e;
+			--card-border: #333843;
+		}
+		*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+		body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
+		header { background: var(--header-bg); color: var(--header-fg); padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
+		.brand-dot { color: var(--ok); font-size: 1.1rem; }
+		.brand { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
+		.stats-bar { margin-left: auto; display: flex; gap: 1.25rem; font-size: .8rem; color: var(--header-fg); align-items: center; opacity: .7; }
+		.stats-bar b { color: var(--header-fg); }
+		.stat-running b { color: var(--ok); }
+		main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
+		.section-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-bottom: .75rem; }
 	.host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: .8rem; }
-	.host-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.2rem 1.3rem 1.25rem; min-height: 110px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; display: block; }
-    .host-card:hover { border-color: #3fb950; box-shadow: 0 2px 10px rgba(63,185,80,.12); }
-    .card-name { font-size: .88rem; font-weight: 600; margin-bottom: .3rem; word-break: break-all; display: flex; align-items: center; gap: .35rem; }
-    .status-dot { display: inline-block; width: 7px; height: 7px; background: #3fb950; border-radius: 50%; flex-shrink: 0; }
-    .card-info { font-size: .78rem; color: #6b7280; }
-    footer { text-align: center; font-size: .75rem; color: #9ca3af; margin-top: 2.5rem; }
-  </style>
+	.host-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1.2rem 1.3rem 1.25rem; min-height: 110px; text-decoration: none; color: inherit; transition: border-color .15s, box-shadow .15s; display: block; }
+		.host-card:hover { border-color: var(--ok); box-shadow: 0 2px 10px rgba(63,185,80,.12); }
+		.card-name { font-size: .88rem; font-weight: 600; margin-bottom: .3rem; word-break: break-all; display: flex; align-items: center; gap: .35rem; }
+		.status-dot { display: inline-block; width: 7px; height: 7px; background: var(--ok); border-radius: 50%; flex-shrink: 0; }
+		.card-info { font-size: .78rem; color: #6b7280; }
+		footer { text-align: center; font-size: .75rem; color: #9ca3af; margin-top: 2.5rem; }
+		#theme-toggle {
+			margin-left: 1.5rem;
+			border-radius: 999px;
+			border: 1px solid var(--card-border);
+			background: var(--card-bg);
+			color: var(--fg);
+			font-size: .8rem;
+			padding: .2rem .8rem;
+			cursor: pointer;
+		}
+	</style>
 </head>
 <body>
-  <header>
-    <span class="brand-dot">⬡</span>
-    <span class="brand">Ofelia</span>
-    <div class="stats-bar">
-      <div><b>{{.TotalJobs}}</b> total jobs</div>
-      <div><b>{{.TotalHosts}}</b> hosts</div>
-      {{if .TotalRunning}}<div class="stat-running"><b>{{.TotalRunning}}</b> running</div>{{end}}
-    </div>
-  </header>
+	<header>
+		<span class="brand-dot">⬡</span>
+		<span class="brand">Ofelia</span>
+		<button id="theme-toggle">🌗</button>
+		<div class="stats-bar">
+			<div><b>{{.TotalJobs}}</b> total jobs</div>
+			<div><b>{{.TotalHosts}}</b> hosts</div>
+			{{if .TotalRunning}}<div class="stat-running"><b>{{.TotalRunning}}</b> running</div>{{end}}
+		</div>
+	</header>
   <main>
     <p class="section-label">Docker Hosts</p>
     <div class="host-grid">
@@ -554,6 +584,43 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
       {{end}}
     </div>
   </main>
+	<script>
+	(function() {
+		// Theme logic
+		const root = document.documentElement;
+		const themeBtn = document.getElementById('theme-toggle');
+		function setTheme(theme, persist = true) {
+			if (theme === 'auto') {
+				if (persist) localStorage.setItem('ofelia-theme', 'auto');
+				const sysTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+				root.setAttribute('data-theme', sysTheme);
+				themeBtn.textContent = '🌗';
+			} else {
+				root.setAttribute('data-theme', theme);
+				if (persist) localStorage.setItem('ofelia-theme', theme);
+				themeBtn.textContent = theme === 'dark' ? '🌞' : '🌙';
+			}
+		}
+		function applyTheme() {
+			const saved = localStorage.getItem('ofelia-theme') || 'auto';
+			if (saved === 'auto') setTheme('auto', false);
+			else setTheme(saved, true);
+		}
+		themeBtn.addEventListener('click', function() {
+			// Three-state cycle: auto -> light -> dark -> auto
+			const saved = localStorage.getItem('ofelia-theme') || 'auto';
+			let next;
+			if (saved === 'auto') next = 'light';
+			else if (saved === 'light') next = 'dark';
+			else next = 'auto';
+			setTheme(next, true);
+		});
+		window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+			if ((localStorage.getItem('ofelia-theme') || 'auto') === 'auto') applyTheme();
+		});
+		applyTheme();
+	})();
+	</script>
 </body>
 </html>`))
 
