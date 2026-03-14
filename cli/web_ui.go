@@ -515,7 +515,7 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
-	<link rel="icon" type="image/gif" href="https://camo.githubusercontent.com/7f2c551d2a3c6af164a47b2d87599cd085404668b3249fecb774b33dbfd4504b/68747470733a2f2f776569726473706163652e646b2f4672616e636973636f4962616e657a2f47726170686963732f4f66656c69612e676966">
+	<link rel="icon" type="image/png" href="/static/ofelia-ng.png">
   <title>Ofelia</title>
 	<style>
 		:root {
