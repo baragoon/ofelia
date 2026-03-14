@@ -48,4 +48,4 @@ jobs:
         with:
           # Keep Renovate on a single identity and allow workflow-file updates.
           # Set RENOVATE_TOKEN (repo+workflow scope); fallback keeps workflow runnable.
-          token: '${{ secrets.RENOVATE_TOKEN || github.token }}'
+          token: '${{ github.token }}'
