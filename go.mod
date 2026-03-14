@@ -18,6 +18,7 @@ require (
 	github.com/mcuadros/go-defaults v1.2.0
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
 	github.com/robfig/cron/v3 v3.0.1
+	golang.org/x/term v0.41.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
