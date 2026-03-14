@@ -585,61 +585,69 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
 			--card-bg: #23272e;
 			--card-border: #333843;
 		}
-		body { background: var(--bg); color: var(--fg); }
-		header { background: var(--header-bg); color: var(--header-fg); }
-		.host-card, .job-row { background: var(--card-bg); border-color: var(--card-border); }
-		.job-row.last-ok { border-left-color: var(--ok); }
-		.job-row.last-fail { border-left-color: var(--fail); }
-		.job-row.is-running { border-left-color: var(--running); }
-	</style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #1a1f36; min-height: 100vh; }
-    header { background: #0d1117; color: #fff; padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
-    .brand-dot { color: #3fb950; font-size: 1.1rem; }
-    .brand { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
-    .stats-bar { margin-left: auto; display: flex; gap: 1.25rem; font-size: .8rem; color: rgba(255,255,255,.5); align-items: center; }
-    .stats-bar b { color: #fff; }
-    .stat-running b { color: #3fb950; }
-    main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
-    .back { display: inline-flex; align-items: center; gap: .3rem; text-decoration: none; color: #6b7280; font-size: .82rem; margin-bottom: .9rem; }
-    .back:hover { color: #3fb950; }
-	.host-title { font-size: 1rem; font-weight: 600; margin-bottom: .7rem; color: #1a1f36; }
+		   /* Only use variable-based rules here; remove duplicates below */
+		   .host-card, .job-row { background: var(--card-bg); border-color: var(--card-border); }
+		   .job-row.last-ok { border-left-color: var(--ok); }
+		   .job-row.last-fail { border-left-color: var(--fail); }
+		   .job-row.is-running { border-left-color: var(--running); }
+	*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+	body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; }
+	header { background: var(--header-bg); color: var(--header-fg); padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
+	.brand-dot { color: var(--ok); font-size: 1.1rem; }
+	.brand { font-size: 1rem; font-weight: 700; letter-spacing: -.2px; }
+	.stats-bar { margin-left: auto; display: flex; gap: 1.25rem; font-size: .8rem; color: var(--header-fg); opacity: .7; align-items: center; }
+	.stats-bar b { color: var(--header-fg); }
+	.stat-running b { color: var(--ok); }
+	main { max-width: 880px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
+	.back { display: inline-flex; align-items: center; gap: .3rem; text-decoration: none; color: var(--ok); font-size: .82rem; margin-bottom: .9rem; }
+	.back:hover { color: var(--fail); }
+	.host-title { font-size: 1rem; font-weight: 600; margin-bottom: .7rem; color: var(--fg); }
 	.host-actions { margin-bottom: .9rem; display: flex; justify-content: flex-end; }
-	.expand-all-btn { border: 1px solid #bfdbce; border-radius: 999px; background: #ecfdf3; color: #166534; font-size: .74rem; font-weight: 700; padding: .32rem .72rem; cursor: pointer; letter-spacing: .01em; }
-	.expand-all-btn:hover { border-color: #86efac; background: #dcfce7; }
-	.expand-all-btn:focus-visible { outline: 2px solid #22c55e; outline-offset: 2px; }
-    .job-list { display: flex; flex-direction: column; gap: .45rem; }
-    .job-row { background: #fff; border: 1px solid #e5e7eb; border-left: 3px solid #9ca3af; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
-    .job-row.last-ok { border-left-color: #3fb950; }
-    .job-row.last-fail { border-left-color: #f85149; }
-    .job-row.is-running { border-left-color: #1a7f37; }
-    .job-schedule { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .76rem; background: #f0f4f8; border: 1px solid #dee2e6; border-radius: 4px; padding: .22rem .55rem; white-space: nowrap; color: #3d4f60; align-self: start; margin-top: .1rem; }
-    .job-body { min-width: 0; }
-    .job-name { font-weight: 600; font-size: .9rem; margin-bottom: .15rem; word-break: break-word; }
-    .job-target { font-size: .78rem; color: #6b7280; margin-bottom: .1rem; }
+	.expand-all-btn { border: 1px solid var(--ok); border-radius: 999px; background: var(--card-bg); color: var(--ok); font-size: .74rem; font-weight: 700; padding: .32rem .72rem; cursor: pointer; letter-spacing: .01em; }
+	.expand-all-btn:hover { border-color: var(--fail); background: var(--card-bg); }
+	.expand-all-btn:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+	.job-list { display: flex; flex-direction: column; gap: .45rem; }
+	.job-row { background: var(--card-bg); border: 1px solid var(--card-border); border-left: 3px solid #9ca3af; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
+	.job-row.last-ok { border-left-color: var(--ok); }
+	.job-row.last-fail { border-left-color: var(--fail); }
+	.job-row.is-running { border-left-color: var(--running); }
+	.job-schedule { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .76rem; background: var(--bg); border: 1px solid var(--card-border); border-radius: 4px; padding: .22rem .55rem; white-space: nowrap; color: var(--fg); align-self: start; margin-top: .1rem; }
+	.job-body { min-width: 0; }
+	.job-name { font-weight: 600; font-size: .9rem; margin-bottom: .15rem; word-break: break-word; color: var(--fg); }
+	.job-target { font-size: .78rem; color: var(--fg); margin-bottom: .1rem; }
 	.job-cmd-wrap { margin-top: .12rem; }
-	.job-cmd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .75rem; color: #8b949e; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; word-break: break-word; }
+	.job-cmd { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: .75rem; color: var(--fg); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: pre-wrap; word-break: break-word; background: var(--card-bg); }
 	.job-cmd.expanded { display: block; -webkit-line-clamp: unset; }
-	.cmd-expand-btn { margin-top: .25rem; border: 1px solid #dbeafe; border-radius: 999px; background: #eff6ff; color: #1d4ed8; font-size: .7rem; font-weight: 700; padding: .14rem .5rem; cursor: pointer; }
-	.cmd-expand-btn:hover { background: #dbeafe; border-color: #bfdbfe; }
-	.cmd-expand-btn:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
-    .job-meta { margin-top: .4rem; display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .76rem; color: #6b7280; }
-    .lbl { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-right: .3rem; }
-    .lbl-next { color: #3fb950; }
-    .last-run-info { cursor: default; border-bottom: 1px dashed #9ca3af; }
-    .last-run-info[title] { cursor: help; border-bottom-style: dotted; }
-    .job-badges { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; align-self: start; padding-top: .1rem; }
-    .badge { display: inline-block; font-size: .68rem; font-weight: 600; border-radius: 99px; padding: .15rem .55rem; white-space: nowrap; }
-    .badge-type { background: #f3f4f6; color: #4b5563; }
-    .badge-running { background: #dcfce7; color: #166534; }
-    footer { text-align: center; font-size: .75rem; color: #9ca3af; margin-top: 2.5rem; }
-  </style>
+	.cmd-expand-btn { margin-top: .25rem; border: 1px solid var(--ok); border-radius: 999px; background: var(--card-bg); color: var(--ok); font-size: .7rem; font-weight: 700; padding: .14rem .5rem; cursor: pointer; }
+	.cmd-expand-btn:hover { background: var(--bg); border-color: var(--fail); }
+	.cmd-expand-btn:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
+	.job-meta { margin-top: .4rem; display: flex; gap: 1.1rem; flex-wrap: wrap; font-size: .76rem; color: var(--fg); }
+	.lbl { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-right: .3rem; }
+	.lbl-next { color: var(--ok); }
+	.last-run-info { cursor: default; border-bottom: 1px dashed var(--ok); }
+	.last-run-info[title] { cursor: help; border-bottom-style: dotted; }
+	.job-badges { display: flex; flex-direction: column; align-items: flex-end; gap: .3rem; align-self: start; padding-top: .1rem; }
+	.badge { display: inline-block; font-size: .68rem; font-weight: 600; border-radius: 99px; padding: .15rem .55rem; white-space: nowrap; background: var(--bg); color: var(--fg); }
+	.badge-type { background: var(--card-bg); color: var(--fg); }
+	.badge-running { background: var(--ok); color: var(--header-bg); }
+	footer { text-align: center; font-size: .75rem; color: var(--fg); margin-top: 2.5rem; }
+		   #theme-toggle {
+			   margin-left: 1.5rem;
+			   border-radius: 999px;
+			   border: 1px solid var(--card-border);
+			   background: var(--card-bg);
+			   color: var(--fg);
+			   font-size: .8rem;
+			   padding: .2rem .8rem;
+			   cursor: pointer;
+		   }
+	   </style>
 </head>
 <body>
   <header>
     <span class="brand-dot">⬡</span>
     <span class="brand">Ofelia</span>
-		<button id="theme-toggle" style="margin-left:1.5rem; border-radius:999px; border:1px solid #ccc; background:var(--card-bg); color:var(--fg); font-size:.8rem; padding:.2rem .8rem; cursor:pointer;">🌗</button>
+	<button id="theme-toggle">🌗</button>
     <div class="stats-bar">
       <div><b>{{.JobCount}}</b> job{{if ne .JobCount 1}}s{{end}}</div>
       {{if .RunningCount}}<div class="stat-running"><b>{{.RunningCount}}</b> running</div>{{end}}
@@ -685,24 +693,36 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
 	  // Theme logic
 	  const root = document.documentElement;
 	  const themeBtn = document.getElementById('theme-toggle');
-	  function setTheme(theme) {
-	    root.setAttribute('data-theme', theme);
-	    localStorage.setItem('ofelia-theme', theme);
-	    themeBtn.textContent = theme === 'dark' ? '🌞' : theme === 'light' ? '🌙' : '🌗';
-	  }
+	   function setTheme(theme, persist = true) {
+		   if (theme === 'auto') {
+			   // Store 'auto', but apply the system theme
+			   if (persist) localStorage.setItem('ofelia-theme', 'auto');
+			   const sysTheme = getSystemTheme();
+			   root.setAttribute('data-theme', sysTheme);
+			   themeBtn.textContent = '🌗';
+		   } else {
+			   root.setAttribute('data-theme', theme);
+			   if (persist) localStorage.setItem('ofelia-theme', theme);
+			   themeBtn.textContent = theme === 'dark' ? '🌞' : '🌙';
+		   }
+	   }
 	  function getSystemTheme() {
 	    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 	  }
-	  function applyTheme() {
-	    const saved = localStorage.getItem('ofelia-theme') || 'auto';
-	    if (saved === 'auto') setTheme(getSystemTheme());
-	    else setTheme(saved);
-	  }
-	  themeBtn.addEventListener('click', function() {
-	    const current = root.getAttribute('data-theme') || 'auto';
-	    let next = current === 'auto' ? (getSystemTheme() === 'dark' ? 'light' : 'dark') : current === 'dark' ? 'light' : 'dark';
-	    setTheme(next);
-	  });
+	   function applyTheme() {
+		   const saved = localStorage.getItem('ofelia-theme') || 'auto';
+		   if (saved === 'auto') setTheme('auto', false);
+		   else setTheme(saved, true);
+	   }
+	   themeBtn.addEventListener('click', function() {
+		   // Three-state cycle: auto -> light -> dark -> auto
+		   const saved = localStorage.getItem('ofelia-theme') || 'auto';
+		   let next;
+		   if (saved === 'auto') next = 'light';
+		   else if (saved === 'light') next = 'dark';
+		   else next = 'auto';
+		   setTheme(next, true);
+	   });
 	  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
 	    if ((localStorage.getItem('ofelia-theme') || 'auto') === 'auto') applyTheme();
 	  });
