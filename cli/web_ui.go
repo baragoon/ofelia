@@ -558,14 +558,40 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
 </html>`))
 
 var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFuncMap).Parse(`<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="auto">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
 	<link rel="icon" type="image/gif" href="https://camo.githubusercontent.com/7f2c551d2a3c6af164a47b2d87599cd085404668b3249fecb774b33dbfd4504b/68747470733a2f2f776569726473706163652e646b2f4672616e636973636f4962616e657a2f47726170686963732f4f66656c69612e676966">
   <title>Ofelia &mdash; {{.Title}}</title>
-  <style>
+	<style>
+		:root {
+			--bg: #f0f2f5;
+			--fg: #1a1f36;
+			--header-bg: #0d1117;
+			--header-fg: #fff;
+			--card-bg: #fff;
+			--card-border: #e5e7eb;
+			--ok: #3fb950;
+			--fail: #f85149;
+			--running: #1a7f37;
+		}
+		[data-theme="dark"] {
+			--bg: #181a1b;
+			--fg: #e5e7eb;
+			--header-bg: #23272e;
+			--header-fg: #fff;
+			--card-bg: #23272e;
+			--card-border: #333843;
+		}
+		body { background: var(--bg); color: var(--fg); }
+		header { background: var(--header-bg); color: var(--header-fg); }
+		.host-card, .job-row { background: var(--card-bg); border-color: var(--card-border); }
+		.job-row.last-ok { border-left-color: var(--ok); }
+		.job-row.last-fail { border-left-color: var(--fail); }
+		.job-row.is-running { border-left-color: var(--running); }
+	</style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #1a1f36; min-height: 100vh; }
     header { background: #0d1117; color: #fff; padding: .65rem 1.5rem; display: flex; align-items: center; gap: .6rem; }
@@ -613,6 +639,7 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
   <header>
     <span class="brand-dot">⬡</span>
     <span class="brand">Ofelia</span>
+		<button id="theme-toggle" style="margin-left:1.5rem; border-radius:999px; border:1px solid #ccc; background:var(--card-bg); color:var(--fg); font-size:.8rem; padding:.2rem .8rem; cursor:pointer;">🌗</button>
     <div class="stats-bar">
       <div><b>{{.JobCount}}</b> job{{if ne .JobCount 1}}s{{end}}</div>
       {{if .RunningCount}}<div class="stat-running"><b>{{.RunningCount}}</b> running</div>{{end}}
@@ -654,6 +681,33 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
     </div>
   </main>
 	<script>
+	(function() {
+	  // Theme logic
+	  const root = document.documentElement;
+	  const themeBtn = document.getElementById('theme-toggle');
+	  function setTheme(theme) {
+	    root.setAttribute('data-theme', theme);
+	    localStorage.setItem('ofelia-theme', theme);
+	    themeBtn.textContent = theme === 'dark' ? '🌞' : theme === 'light' ? '🌙' : '🌗';
+	  }
+	  function getSystemTheme() {
+	    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+	  }
+	  function applyTheme() {
+	    const saved = localStorage.getItem('ofelia-theme') || 'auto';
+	    if (saved === 'auto') setTheme(getSystemTheme());
+	    else setTheme(saved);
+	  }
+	  themeBtn.addEventListener('click', function() {
+	    const current = root.getAttribute('data-theme') || 'auto';
+	    let next = current === 'auto' ? (getSystemTheme() === 'dark' ? 'light' : 'dark') : current === 'dark' ? 'light' : 'dark';
+	    setTheme(next);
+	  });
+	  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function() {
+	    if ((localStorage.getItem('ofelia-theme') || 'auto') === 'auto') applyTheme();
+	  });
+	  applyTheme();
+	})();
 		(function () {
 			const buttons = document.querySelectorAll('.cmd-expand-btn');
 			buttons.forEach((btn) => {
