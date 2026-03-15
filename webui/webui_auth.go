@@ -1,8 +1,8 @@
-package cli
+package webui
 
 import (
 	"errors"
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 
@@ -10,13 +10,14 @@ import (
 )
 
 // WebUIPasswordEnv is the environment variable for the Argon2id hash of the UI password.
+// This is not a secret, just the env var name (gosec false positive).
 // #nosec G101 -- Not a credential, just an env var name
 const WebUIPasswordEnv = "OFELIA_WEBUI_PASSWORD_HASH"
 
 // SetWebUIPasswordHash sets the Argon2id hash in the environment (for tests or setup).
 func SetWebUIPasswordHash(hash string) {
 	if err := os.Setenv(WebUIPasswordEnv, hash); err != nil {
-		 fmt.Fprintf(os.Stderr, "Failed to set web UI password hash env: %v\n", err)
+		  log.Printf("[ERROR] Failed to set environment variable: %v", err)
 	}
 }
 
@@ -24,24 +25,29 @@ func SetWebUIPasswordHash(hash string) {
 func CheckWebUIPassword(user, password string) bool {
        hash := os.Getenv(WebUIPasswordEnv)
        if hash == "" {
-	       // Fallback: allow default user/pass ofelia:ofelia
-	       return user == "ofelia" && password == "ofelia"
+	       // Secure: require password hash to be set in production
+	       // Optionally log a warning here if you have a logger
+	       return false
        }
-       ok, _ := argon2id.ComparePasswordAndHash(password, hash)
+       ok, err := argon2id.ComparePasswordAndHash(password, hash)
+       if err != nil {
+	       // Optionally log the error here if you have a logger
+	       return false
+       }
        return ok
 }
 
 // RequireWebUIAuth is a middleware that enforces HTTP Basic Auth with Argon2id password check.
 func RequireWebUIAuth(next http.Handler) http.Handler {
-       return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	       user, pass, ok := r.BasicAuth()
-	       if !ok || !CheckWebUIPassword(user, pass) {
-		       w.Header().Set("WWW-Authenticate", `Basic realm="Ofelia Web UI"`)
-		       http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		       return
-	       }
-	       next.ServeHTTP(w, r)
-       })
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || !CheckWebUIPassword(user, pass) {
+			   w.Header().Set("WWW-Authenticate", `Basic realm="Ofelia Web UI"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // GenerateWebUIPasswordHash generates a strong Argon2id hash for a password.

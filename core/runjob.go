@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 
@@ -156,24 +157,38 @@ func (j *RunJob) pullImage() error {
 }
 
 func (j *RunJob) buildContainer() (*docker.Container, error) {
-	c, err := j.Client.CreateContainer(docker.CreateContainerOptions{
-		Config: &docker.Config{
-			Image:        j.Image,
-			AttachStdin:  false,
-			AttachStdout: true,
-			AttachStderr: true,
-			Tty:          j.TTY,
-			Cmd:          parseCommandArgs(j.Command),
-			User:         j.User,
-			Env:          j.Environment,
-			Hostname:     j.Hostname,
-		},
-		NetworkingConfig: &docker.NetworkingConfig{},
-		HostConfig: &docker.HostConfig{
-			Binds:       j.Volume,
-			VolumesFrom: j.VolumesFrom,
-		},
-	})
+       env := make([]string, 0, len(j.Environment))
+       hasTZ := false
+       for _, e := range j.Environment {
+	       if len(e) >= 3 && (e[:3] == "TZ=" || e[:3] == "tz=") {
+		       hasTZ = true
+	       }
+	       env = append(env, e)
+       }
+	       if !hasTZ {
+		       if tz := os.Getenv("TZ"); tz != "" {
+			       env = append(env, "TZ="+tz)
+		       }
+	       }
+       c, err := j.Client.CreateContainer(docker.CreateContainerOptions{
+	       Config: &docker.Config{
+		       Image:        j.Image,
+		       AttachStdin:  false,
+		       AttachStdout: true,
+		       AttachStderr: true,
+		       Tty:          j.TTY,
+		       Cmd:          parseCommandArgs(j.Command),
+		       User:         j.User,
+		       Env:          env,
+		       Hostname:     j.Hostname,
+	       },
+	       NetworkingConfig: &docker.NetworkingConfig{},
+	       HostConfig: &docker.HostConfig{
+		       Binds:       j.Volume,
+		       VolumesFrom: j.VolumesFrom,
+	       },
+       })
+
 
 	if err != nil {
 		return c, fmt.Errorf("error creating exec: %s", err)

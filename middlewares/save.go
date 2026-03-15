@@ -86,5 +86,6 @@ func (m *Save) saveContextToDisk(ctx *core.Context, filename string) error {
 }
 
 func (m *Save) writeFile(data []byte, filename string) error {
-	return ioutil.WriteFile(filename, data, 0644)
+	// Use 0600 for sensitive job data
+	return ioutil.WriteFile(filename, data, 0600)
 }

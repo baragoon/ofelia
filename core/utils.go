@@ -9,16 +9,21 @@ import (
 )
 
 func BuildTestImage(client *docker.Client, name string) error {
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	tw.WriteHeader(&tar.Header{Name: "Dockerfile"})
-	tw.Write([]byte("FROM alpine\n"))
-	tw.Close()
-
-	return client.BuildImage(docker.BuildImageOptions{
-		Name:         name,
-		Remote:       "github.com/baragoon/ofelia",
-		InputStream:  &buf,
-		OutputStream: os.Stdout,
-	})
+       var buf bytes.Buffer
+       tw := tar.NewWriter(&buf)
+       if err := tw.WriteHeader(&tar.Header{Name: "Dockerfile"}); err != nil {
+	       return err
+       }
+       if _, err := tw.Write([]byte("FROM alpine\n")); err != nil {
+	       return err
+       }
+       if err := tw.Close(); err != nil {
+	       return err
+       }
+		       options := docker.BuildImageOptions{
+			       Name:         name,
+			       InputStream:  &buf,
+			       OutputStream: os.Stdout,
+		       }
+		       return client.BuildImage(options)
 }

@@ -678,7 +678,7 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
 	.expand-all-btn:hover { border-color: var(--fail); background: var(--card-bg); }
 	.expand-all-btn:focus-visible { outline: 2px solid var(--ok); outline-offset: 2px; }
 	.job-list { display: flex; flex-direction: column; gap: .45rem; }
-	.job-row { background: var(--card-bg); border: 1px solid var(--card-border); border-left: 3px solid #9ca3af; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: start; }
+	.job-row { background: var(--card-bg); border: 1px solid var(--card-border); border-left: 3px solid #9ca3af; border-radius: 6px; padding: .75rem 1rem; display: grid; grid-template-columns: auto 1fr auto; gap: .8rem; align-items: center; }
 	.job-row.last-ok { border-left-color: var(--ok); }
 	.job-row.last-fail { border-left-color: var(--fail); }
 	.job-row.is-running { border-left-color: var(--running); }

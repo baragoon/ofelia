@@ -18,6 +18,7 @@ import (
 )
 
 const (
+       
 	labelPrefix = "ofelia"
 
 	requiredLabel       = labelPrefix + ".enabled"
@@ -100,20 +101,23 @@ func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, 
 		return d, resolvedHost, nil
 	}
 
-	ca, cert, key := c.resolveTLSFiles()
-	tlsVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
-	if tlsVerify {
-		if ca == "" || cert == "" || key == "" {
-			return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
-		}
+	       ca, cert, key := c.resolveTLSFiles()
+	       tlsVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
+	       if tlsVerify {
+		       if os.Getenv("OFELIA_ALLOW_INSECURE_TLS") == "1" {
+				fmt.Fprintf(os.Stderr, "Warning: OFELIA_ALLOW_INSECURE_TLS is set, but TLS verification is always enforced for security. This option is ignored.\n")
+		       }
+		       if ca == "" || cert == "" || key == "" {
+			       return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
+		       }
 
-		d, err := docker.NewTLSClient(host, cert, key, ca)
-		if err != nil {
-			return nil, "", err
-		}
+		       d, err := docker.NewTLSClient(host, cert, key, ca)
+		       if err != nil {
+			       return nil, "", err
+		       }
 
-		return d, host, nil
-	}
+		       return d, host, nil
+	       }
 
 	d, err := docker.NewClient(host)
 	if err != nil {
@@ -629,35 +633,35 @@ func setJobParam(params map[string]interface{}, paramName, paramVal string) {
 	params[paramName] = paramVal
 }
 
+
 func getContainerID(mountinfoFilePath string) (string, error) {
-	// Open the mountinfo file
-	file, err := os.Open(mountinfoFilePath)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
+       // Use os.DirFS to scope file access under /proc/self/ (Go 1.16+)
+       procSelfFS := os.DirFS("/proc/self")
+       relPath := strings.TrimPrefix(mountinfoFilePath, "/proc/self/")
+       if strings.Contains(relPath, "..") || strings.HasPrefix(relPath, "/") {
+	       return "", errors.New("invalid path traversal attempt")
+       }
+	file, err := procSelfFS.Open(relPath)
+       if err != nil {
+	       return "", err
+       }
+       defer file.Close()
 
-	// Scan the file line by line
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Look for container ID in the line
-		if !strings.Contains(line, "/containers/") {
-			continue
-		}
-
-		splt := strings.Split(line, "/")
-		for i, part := range splt {
-			if part == "containers" && len(splt) > i+1 {
-				return splt[i+1], nil
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-
-	return "", os.ErrNotExist
+       scanner := bufio.NewScanner(file)
+       for scanner.Scan() {
+	       line := scanner.Text()
+	       if !strings.Contains(line, "/containers/") {
+		       continue
+	       }
+	       splt := strings.Split(line, "/")
+	       for i, part := range splt {
+		       if part == "containers" && len(splt) > i+1 {
+			       return splt[i+1], nil
+		       }
+	       }
+       }
+       if err := scanner.Err(); err != nil {
+	       return "", err
+       }
+       return "", errors.New("container ID not found")
 }

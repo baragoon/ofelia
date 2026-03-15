@@ -92,11 +92,14 @@ func (m *Mail) sendMail(ctx *core.Context) error {
 		return err
 	}))
 
-	d := gomail.NewPlainDialer(m.SMTPHost, m.SMTPPort, m.SMTPUser, m.SMTPPassword)
-	// When TLSConfig.InsecureSkipVerify is true, mail server certificate authority is not validated
-	if m.SMTPTLSSkipVerify {
-		d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
-	}
+	       d := gomail.NewPlainDialer(m.SMTPHost, m.SMTPPort, m.SMTPUser, m.SMTPPassword)
+	       // Warn if SMTPTLSSkipVerify is enabled
+	       if m.SMTPTLSSkipVerify {
+		       ctx.Logger.Warningf("[SECURITY] SMTPTLSSkipVerify is enabled: SMTP TLS certificate verification is DISABLED. This is insecure and should only be used for testing.")
+		       d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	       } else {
+		       d.TLSConfig = &tls.Config{InsecureSkipVerify: false}
+	       }
 	if err := d.DialAndSend(msg); err != nil {
 		return err
 	}
@@ -115,15 +118,19 @@ func (m *Mail) from() string {
 
 func (m *Mail) subject(ctx *core.Context) string {
 	buf := bytes.NewBuffer(nil)
-	mailSubjectTemplate.Execute(buf, ctx)
-
+	if err := mailSubjectTemplate.Execute(buf, ctx); err != nil {
+		 // Log or handle the error as needed
+		 return "[template error]"
+	}
 	return buf.String()
 }
 
 func (m *Mail) body(ctx *core.Context) string {
 	buf := bytes.NewBuffer(nil)
-	mailBodyTemplate.Execute(buf, ctx)
-
+	if err := mailBodyTemplate.Execute(buf, ctx); err != nil {
+		 // Log or handle the error as needed
+		 return "[template error]"
+	}
 	return buf.String()
 }
 

@@ -3,10 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
-	"github.com/jessevdk/go-flags"
 	"github.com/baragoon/ofelia/cli"
 	"github.com/baragoon/ofelia/core"
+	"github.com/jessevdk/go-flags"
 	"github.com/op/go-logging"
 )
 
@@ -24,17 +25,32 @@ func buildLogger() core.Logger {
 }
 
 func main() {
+       // Respect TZ environment variable if set
+       if tz := os.Getenv("TZ"); tz != "" {
+	       if loc, err := time.LoadLocation(tz); err == nil {
+		       time.Local = loc
+	       } else {
+		       fmt.Fprintf(os.Stderr, "Warning: invalid TZ value '%s': %v\n", tz, err)
+	       }
+       }
 	logger := buildLogger()
 	parser := flags.NewNamedParser("ofelia", flags.Default)
-	parser.AddCommand("daemon", "daemon process", "", &cli.DaemonCommand{Logger: logger})
-	parser.AddCommand("validate", "validates the config file", "", &cli.ValidateCommand{Logger: logger})
+		       if _, err := parser.AddCommand("daemon", "daemon process", "", &cli.DaemonCommand{Logger: logger}); err != nil {
+			       fmt.Fprintf(os.Stderr, "Error adding daemon command: %v\n", err)
+			       os.Exit(1)
+		       }
+		       if _, err := parser.AddCommand("validate", "validates the config file", "", &cli.ValidateCommand{Logger: logger}); err != nil {
+			       fmt.Fprintf(os.Stderr, "Error adding validate command: %v\n", err)
+			       os.Exit(1)
+		       }
 
-	if _, err := parser.Parse(); err != nil {
-		if _, ok := err.(*flags.Error); ok {
-			parser.WriteHelp(os.Stdout)
-			fmt.Printf("\nBuild information\n  commit: %s\n  date:%s\n", version, build)
-		}
-
-		os.Exit(1)
-	}
+		       if _, err := parser.Parse(); err != nil {
+				       if flagsErr, ok := err.(*flags.Error); ok && flagsErr.Type == flags.ErrHelp {
+					       fmt.Printf("\nBuild information\n  commit: %s\n  date: %s\n", version, build)
+					       os.Exit(0)
+				       }
+			       // Print error to stderr for visibility
+			       fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			       os.Exit(1)
+		       }
 }
