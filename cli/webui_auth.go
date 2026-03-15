@@ -15,9 +15,9 @@ const WebUIPasswordEnv = "OFELIA_WEBUI_PASSWORD_HASH"
 
 // SetWebUIPasswordHash sets the Argon2id hash in the environment (for tests or setup).
 func SetWebUIPasswordHash(hash string) {
-	if err := os.Setenv(WebUIPasswordEnv, hash); err != nil {
-		 fmt.Fprintf(os.Stderr, "Failed to set web UI password hash env: %v\n", err)
-	}
+	       if err := os.Setenv(WebUIPasswordEnv, hash); err != nil {
+		       fmt.Fprintf(os.Stderr, "Failed to set web UI password hash env: %v\n", err)
+	       }
 }
 
 // CheckWebUIPassword checks the password against the Argon2id hash in the environment.

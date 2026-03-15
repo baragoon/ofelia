@@ -293,9 +293,9 @@ func TestBuildWebUIStateLastRunFields(t *testing.T) {
 	if !ok {
 		t.Fatal("expected to find job named myjob in state")
 	}
-	if j.LastExitOK != nil {
-		t.Errorf("expected LastExitOK nil before any run, got %v", *j.LastExitOK)
-	}
+	       if j.LastExitOK != nil {
+		       t.Errorf("expected LastExitOK nil before any run, got %v", *j.LastExitOK)
+	       }
 	if j.LastOutput != "" {
 		t.Errorf("expected empty LastOutput before any run, got %q", j.LastOutput)
 	}

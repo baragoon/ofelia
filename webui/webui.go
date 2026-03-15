@@ -197,19 +197,22 @@ func buildWebUIState(config *cli.Config) webUIState {
 		       name = trimContainerPrefixedJobName(name)
 		       t := timings[job.GetCronJobID()]
 		       lr, exitOK, lout := lastRunFields(&job.ExecJob.BareJob)
-		       getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
-			       Name:             name,
-			       Type:             "exec",
-			       Schedule:         job.Schedule,
-			       Command:          maskSecrets(job.Command),
-			       MultilineCommand: isMultilineCommand(job.Command),
-			       Target:           job.Container,
-			       NextRun:          t.next,
-			       LastRun:          lr,
-			       Running:          job.Running() > 0,
-			       LastOutput:       lout,
-				   LastExitOK:       &exitOK,
-		       })
+			       wjob := webUIJob{
+				       Name:             name,
+				       Type:             "exec",
+				       Schedule:         job.Schedule,
+				       Command:          maskSecrets(job.Command),
+				       MultilineCommand: isMultilineCommand(job.Command),
+				       Target:           job.Container,
+				       NextRun:          t.next,
+				       LastRun:          lr,
+				       Running:          job.Running() > 0,
+				       LastOutput:       lout,
+			       }
+			       if !lr.IsZero() {
+				       wjob.LastExitOK = &exitOK
+			       }
+			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
 	       }
 
 	       for jobName, job := range config.RunJobs {
