@@ -118,23 +118,23 @@ func (m *Mail) from() string {
 
 func (m *Mail) subject(ctx *core.Context) string {
 	buf := bytes.NewBuffer(nil)
-	if err := mailSubjectTemplate.Execute(buf, ctx); err != nil {
-		if ctx != nil && ctx.Logger != nil {
-			ctx.Logger.Errorf("Mail subject template error: %v, ctx: %+v", err, ctx)
-		}
-		return "[template error]"
-	}
+	       if err := mailSubjectTemplate.Execute(buf, ctx); err != nil {
+		       if ctx != nil && ctx.Logger != nil {
+			       ctx.Logger.Errorf("Mail subject template error: %v", err)
+		       }
+		       return "[template error]"
+	       }
 	return buf.String()
 }
 
 func (m *Mail) body(ctx *core.Context) string {
 	buf := bytes.NewBuffer(nil)
-	if err := mailBodyTemplate.Execute(buf, ctx); err != nil {
-		if ctx != nil && ctx.Logger != nil {
-			ctx.Logger.Errorf("Mail body template error: %v, ctx: %+v", err, ctx)
-		}
-		return "[template error]"
-	}
+	       if err := mailBodyTemplate.Execute(buf, ctx); err != nil {
+		       if ctx != nil && ctx.Logger != nil {
+			       ctx.Logger.Errorf("Mail body template error: %v", err)
+		       }
+		       return "[template error]"
+	       }
 	return buf.String()
 }
 

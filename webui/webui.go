@@ -65,13 +65,14 @@ type lastExecProvider interface {
 }
 
 // Returns lastRun, exitOK, output for a job's last execution.
-func lastRunFields(p lastExecProvider) (lastRun time.Time, exitOK bool, output string) {
+func lastRunFields(p lastExecProvider) (lastRun time.Time, exitOK *bool, output string) {
        exec := p.GetLastExecution()
        if exec == nil {
 	       return
        }
        lastRun = exec.Date
-       exitOK = !exec.Failed && !exec.Skipped
+       ok := !exec.Failed && !exec.Skipped
+       exitOK = &ok
        // Prefer OutputStream if available, else fallback to fmt.Sprint(exec)
        if exec.OutputStream != nil {
 	       output = exec.OutputStream.String()
@@ -189,14 +190,14 @@ func buildWebUIState(config *cli.Config) webUIState {
        }
 
        if config != nil {
-	       for jobName, job := range config.ExecJobs {
-		       host, name := splitHostPrefixedJobName(jobName)
-		       if strings.TrimSpace(job.DockerHost) != "" {
-			       host = job.DockerHost
-		       }
-		       name = trimContainerPrefixedJobName(name)
-		       t := timings[job.GetCronJobID()]
-		       lr, exitOK, lout := lastRunFields(&job.ExecJob.BareJob)
+		       for jobName, job := range config.ExecJobs {
+			       host, name := splitHostPrefixedJobName(jobName)
+			       if strings.TrimSpace(job.DockerHost) != "" {
+				       host = job.DockerHost
+			       }
+			       name = trimContainerPrefixedJobName(name)
+			       t := timings[job.GetCronJobID()]
+			       lr, exitOK, lout := lastRunFields(&job.ExecJob.BareJob)
 			       wjob := webUIJob{
 				       Name:             name,
 				       Type:             "exec",
@@ -209,76 +210,85 @@ func buildWebUIState(config *cli.Config) webUIState {
 				       Running:          job.Running() > 0,
 				       LastOutput:       lout,
 			       }
-			       if !lr.IsZero() {
-				       wjob.LastExitOK = &exitOK
+			       if !lr.IsZero() && exitOK != nil {
+				       wjob.LastExitOK = exitOK
 			       }
 			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
 	       }
 
-	       for jobName, job := range config.RunJobs {
-		       host, name := splitHostPrefixedJobName(jobName)
-		       if strings.TrimSpace(job.DockerHost) != "" {
-			       host = job.DockerHost
-		       }
-		       target := strings.TrimSpace(job.Image)
-		       if target == "" {
-			       target = strings.TrimSpace(job.Container)
-		       }
-		       t := timings[job.GetCronJobID()]
-		       lr, exitOK, lout := lastRunFields(&job.RunJob.BareJob)
-		       getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
-			       Name:             name,
-			       Type:             "run",
-			       Schedule:         job.Schedule,
-			       Command:          maskSecrets(job.Command),
-			       MultilineCommand: isMultilineCommand(job.Command),
-			       Target:           target,
-			       NextRun:          t.next,
-			       LastRun:          lr,
-			       Running:          job.Running() > 0,
-			       LastOutput:       lout,
-				   LastExitOK:       &exitOK,
-		       })
+		       for jobName, job := range config.RunJobs {
+			       host, name := splitHostPrefixedJobName(jobName)
+			       if strings.TrimSpace(job.DockerHost) != "" {
+				       host = job.DockerHost
+			       }
+			       target := strings.TrimSpace(job.Image)
+			       if target == "" {
+				       target = strings.TrimSpace(job.Container)
+			       }
+			       t := timings[job.GetCronJobID()]
+			       lr, exitOK, lout := lastRunFields(&job.RunJob.BareJob)
+			       wjob := webUIJob{
+				       Name:             name,
+				       Type:             "run",
+				       Schedule:         job.Schedule,
+				       Command:          maskSecrets(job.Command),
+				       MultilineCommand: isMultilineCommand(job.Command),
+				       Target:           target,
+				       NextRun:          t.next,
+				       LastRun:          lr,
+				       Running:          job.Running() > 0,
+				       LastOutput:       lout,
+			       }
+			       if !lr.IsZero() && exitOK != nil {
+				       wjob.LastExitOK = exitOK
+			       }
+			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
 	       }
 
-	       for jobName, job := range config.ServiceJobs {
-		       host, name := splitHostPrefixedJobName(jobName)
-		       if strings.TrimSpace(job.DockerHost) != "" {
-			       host = job.DockerHost
-		       }
-		       t := timings[job.GetCronJobID()]
-		       lr, exitOK, lout := lastRunFields(&job.RunServiceJob.BareJob)
-		       getHost(host).Jobs = append(getHost(host).Jobs, webUIJob{
-			       Name:             name,
-			       Type:             "service-run",
-			       Schedule:         job.Schedule,
-			       Command:          maskSecrets(job.Command),
-			       MultilineCommand: isMultilineCommand(job.Command),
-			       Target:           job.Image,
-			       NextRun:          t.next,
-			       LastRun:          lr,
-			       Running:          job.Running() > 0,
-			       LastOutput:       lout,
-				   LastExitOK:       &exitOK,
-		       })
+		       for jobName, job := range config.ServiceJobs {
+			       host, name := splitHostPrefixedJobName(jobName)
+			       if strings.TrimSpace(job.DockerHost) != "" {
+				       host = job.DockerHost
+			       }
+			       t := timings[job.GetCronJobID()]
+			       lr, exitOK, lout := lastRunFields(&job.RunServiceJob.BareJob)
+			       wjob := webUIJob{
+				       Name:             name,
+				       Type:             "service-run",
+				       Schedule:         job.Schedule,
+				       Command:          maskSecrets(job.Command),
+				       MultilineCommand: isMultilineCommand(job.Command),
+				       Target:           job.Image,
+				       NextRun:          t.next,
+				       LastRun:          lr,
+				       Running:          job.Running() > 0,
+				       LastOutput:       lout,
+			       }
+			       if !lr.IsZero() && exitOK != nil {
+				       wjob.LastExitOK = exitOK
+			       }
+			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
 	       }
 
-	       for jobName, job := range config.LocalJobs {
-		       t := timings[job.GetCronJobID()]
-		       lr, exitOK, lout := lastRunFields(&job.LocalJob.BareJob)
-		       getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, webUIJob{
-			       Name:             jobName,
-			       Type:             "local",
-			       Schedule:         job.Schedule,
-			       Command:          maskSecrets(job.Command),
-			       MultilineCommand: isMultilineCommand(job.Command),
-			       Target:           job.Dir,
-			       NextRun:          t.next,
-			       LastRun:          lr,
-			       Running:          job.Running() > 0,
-			       LastOutput:       lout,
-				   LastExitOK:       &exitOK,
-		       })
+		       for jobName, job := range config.LocalJobs {
+			       t := timings[job.GetCronJobID()]
+			       lr, exitOK, lout := lastRunFields(&job.LocalJob.BareJob)
+			       wjob := webUIJob{
+				       Name:             jobName,
+				       Type:             "local",
+				       Schedule:         job.Schedule,
+				       Command:          maskSecrets(job.Command),
+				       MultilineCommand: isMultilineCommand(job.Command),
+				       Target:           job.Dir,
+				       NextRun:          t.next,
+				       LastRun:          lr,
+				       Running:          job.Running() > 0,
+				       LastOutput:       lout,
+			       }
+			       if !lr.IsZero() && exitOK != nil {
+				       wjob.LastExitOK = exitOK
+			       }
+			       getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, wjob)
 	       }
        }
 

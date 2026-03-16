@@ -356,9 +356,9 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 		if !found {
 					   c.logger.Noticef("Job %s is not found, Removing", name)
 			// Remove the job
-			       if err := c.sh.RemoveJob(j); err != nil {
-				       c.logger.Errorf("Failed to remove RunJob %s: %v", name, err)
-			       }
+				       if err := c.sh.RemoveJob(j); err != nil {
+					       c.logger.Errorf("Failed to remove ExecJob %s: %v", name, err)
+				       }
 			delete(c.ExecJobs, name)
 		}
 	}
@@ -377,9 +377,9 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 			newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 			newJob.Name = newJobsName
 			newJob.buildMiddlewares()
-			       if err := c.sh.AddJob(newJob); err != nil {
-				       c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
-			       }
+				       if err := c.sh.AddJob(newJob); err != nil {
+					       c.logger.Errorf("Failed to add ExecJob %s: %v", newJobsName, err)
+				       }
 			c.ExecJobs[newJobsName] = newJob
 		}
 	}
@@ -398,14 +398,14 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 				newJob.Name = newJobsName
 				if newJob.Hash() != j.Hash() {
 					// Remove from the scheduler
-					       if err := c.sh.RemoveJob(j); err != nil {
-						       c.logger.Errorf("Failed to remove LocalJob %s: %v", name, err)
-					       }
+						       if err := c.sh.RemoveJob(j); err != nil {
+							       c.logger.Errorf("Failed to remove RunJob %s: %v", name, err)
+						       }
 					// Add the job back to the scheduler
 					newJob.buildMiddlewares()
-					       if err := c.sh.AddJob(newJob); err != nil {
-						       c.logger.Errorf("Failed to add LocalJob %s: %v", newJobsName, err)
-					       }
+						       if err := c.sh.AddJob(newJob); err != nil {
+							       c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
+						       }
 					// Update the job config
 					c.RunJobs[name] = newJob
 				}
@@ -414,9 +414,9 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 		}
 		if !found {
 			// Remove the job
-			       if err := c.sh.RemoveJob(j); err != nil {
-				       c.logger.Errorf("Failed to remove ServiceJob %s: %v", name, err)
-			       }
+				       if err := c.sh.RemoveJob(j); err != nil {
+					       c.logger.Errorf("Failed to remove RunJob %s: %v", name, err)
+				       }
 			delete(c.RunJobs, name)
 		}
 	}
@@ -435,9 +435,9 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 			newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 			newJob.Name = newJobsName
 			newJob.buildMiddlewares()
-			       if err := c.sh.AddJob(newJob); err != nil {
-				       c.logger.Errorf("Failed to add ServiceJob %s: %v", newJobsName, err)
-			       }
+				       if err := c.sh.AddJob(newJob); err != nil {
+					       c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
+				       }
 			c.RunJobs[newJobsName] = newJob
 		}
 	}
