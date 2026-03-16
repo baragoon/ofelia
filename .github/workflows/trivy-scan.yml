@@ -46,7 +46,7 @@ jobs:
       - name: Run Trivy image scan
         uses: aquasecurity/trivy-action@97e0b3872f55f89b95b2f65b3dbab56962816478 # 0.34.2
         with:
-          image-ref: ghcr.io/${{ github.repository }}:latest
+          image-ref: ghcr.io/${{ github.repository }}:development
           format: sarif
           output: trivy.sarif
           ignore-unfixed: true
