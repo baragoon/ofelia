@@ -13,8 +13,7 @@ jobs:
       matrix:
         go-version: ['stable']
         platform: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
-#    runs-on: ${{ matrix.platform }}
-    runs-on: self-hosted
+    runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
@@ -38,8 +37,7 @@ jobs:
       matrix:
         go-version: ['stable']
         platform: [ubuntu-latest, ubuntu-24.04-arm]
-#    runs-on: ${{ matrix.platform }}
-    runs-on: self-hosted
+    runs-on: ${{ matrix.platform }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
