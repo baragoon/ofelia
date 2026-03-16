@@ -17,7 +17,9 @@ FROM alpine:3.23
 LABEL ofelia.service=true
 LABEL ofelia.enabled=true
 
-RUN apk --no-cache add ca-certificates tini tzdata
+RUN apk --no-cache add ca-certificates tini tzdata zlib>=1.3.2-r0 \
+    && apk update \
+    && apk upgrade zlib
 
 COPY --from=builder /go/bin/ofelia /usr/bin/ofelia
 
