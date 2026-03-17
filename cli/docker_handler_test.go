@@ -277,6 +277,10 @@ func (s *TestDockerSuit) startTestContainersWithLabels(containerLabels []map[str
 }
 
 func (s *TestDockerSuit) TestGetContainerID(c *check.C) {
+		// Set env to allow any mountinfo file for test
+		origEnv := os.Getenv("OFELIA_TEST_ALLOW_ANY_MOUNTINFO")
+		os.Setenv("OFELIA_TEST_ALLOW_ANY_MOUNTINFO", "1")
+		defer os.Setenv("OFELIA_TEST_ALLOW_ANY_MOUNTINFO", origEnv)
 	tests := []struct {
 		content string
 		expect  string

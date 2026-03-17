@@ -403,17 +403,17 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 				break
 			}
 		}
-		   if !found {
-			   defaults.SetDefaults(newJob)
-			   newJob.Client = c.resolveDockerClient(newJob.DockerHost)
-			   newJob.Name = newJobsName
-			   newJob.buildMiddlewares()
-			   if err := c.sh.AddJob(newJob); err != nil {
-				   c.logger.Errorf("Failed to add ExecJob %s: %v", newJobsName, err)
-			   } else {
-				   c.ExecJobs[newJobsName] = newJob
-			   }
-		   }
+		if !found {
+			defaults.SetDefaults(newJob)
+			newJob.Client = c.resolveDockerClient(newJob.DockerHost)
+			newJob.Name = newJobsName
+			newJob.buildMiddlewares()
+			if err := c.sh.AddJob(newJob); err != nil {
+				c.logger.Errorf("Failed to add ExecJob %s: %v", newJobsName, err)
+			} else {
+				c.ExecJobs[newJobsName] = newJob
+			}
+		}
 	}
 
 	for name, j := range c.RunJobs {
@@ -428,19 +428,26 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 				defaults.SetDefaults(newJob)
 				newJob.Client = c.resolveDockerClient(newJob.DockerHost)
 				newJob.Name = newJobsName
-				   if newJob.Hash() != j.Hash() {
-					   // Remove from the scheduler
-					   if err := c.sh.RemoveJob(j); err != nil {
-						   c.logger.Errorf("Failed to remove RunJob %s: %v", name, err)
-					   }
-					   // Add the job back to the scheduler
-					   newJob.buildMiddlewares()
-					   if err := c.sh.AddJob(newJob); err != nil {
-						   c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
-					   } else {
-						   c.RunJobs[name] = newJob
-					   }
-				   }
+				if newJob.Hash() != j.Hash() {
+					// Remove from the scheduler
+					if err := c.sh.RemoveJob(j); err != nil {
+						c.logger.Errorf("Failed to remove RunJob %s: %v", name, err)
+					}
+					// Add the job back to the scheduler
+					newJob.buildMiddlewares()
+					if err := c.sh.AddJob(newJob); err != nil {
+						c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
+						// Rollback: try to re-add the old job and restore config
+						if rerr := c.sh.AddJob(j); rerr != nil {
+							c.logger.Errorf("Failed to rollback RunJob %s: %v", name, rerr)
+							delete(c.RunJobs, name)
+						} else {
+							c.RunJobs[name] = j
+						}
+					} else {
+						c.RunJobs[name] = newJob
+					}
+				}
 				break
 			}
 		}
@@ -462,17 +469,17 @@ func (c *Config) dockerLabelsUpdate(labels map[string]map[string]string) {
 				break
 			}
 		}
-		   if !found {
-			   defaults.SetDefaults(newJob)
-			   newJob.Client = c.resolveDockerClient(newJob.DockerHost)
-			   newJob.Name = newJobsName
-			   newJob.buildMiddlewares()
-			   if err := c.sh.AddJob(newJob); err != nil {
-				   c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
-			   } else {
-				   c.RunJobs[newJobsName] = newJob
-			   }
-		   }
+		if !found {
+			defaults.SetDefaults(newJob)
+			newJob.Client = c.resolveDockerClient(newJob.DockerHost)
+			newJob.Name = newJobsName
+			newJob.buildMiddlewares()
+			if err := c.sh.AddJob(newJob); err != nil {
+				c.logger.Errorf("Failed to add RunJob %s: %v", newJobsName, err)
+			} else {
+				c.RunJobs[newJobsName] = newJob
+			}
+		}
 	}
 }
 
