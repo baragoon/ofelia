@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/baragoon/ofelia/cli"
 	"github.com/baragoon/ofelia/core"
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/robfig/cron/v3"
 )
 
@@ -151,29 +151,19 @@ func buildWebUIState(config *cli.Config) webUIState {
 	       return h
        }
 
-       // Use reflection to access unexported fields (mu, sh, dockerHandler)
-       var mu *sync.RWMutex
-       var sh interface{ CronJobs() []cron.Entry }
-       var dockerHandler interface{ GetInternalDockerClients() map[string]interface{} }
-       if config != nil {
-	       v := reflect.ValueOf(config).Elem()
-	       muField := v.FieldByName("mu")
-	       if muField.IsValid() && muField.CanAddr() {
-		       mu = muField.Addr().Interface().(*sync.RWMutex)
-	       }
-	       shField := v.FieldByName("sh")
-	       if shField.IsValid() && !shField.IsNil() {
-		       sh = shField.Interface().(interface{ CronJobs() []cron.Entry })
-	       }
-	       dhField := v.FieldByName("dockerHandler")
-	       if dhField.IsValid() && !dhField.IsNil() {
-		       dockerHandler = dhField.Interface().(interface{ GetInternalDockerClients() map[string]interface{} })
-	       }
-       }
-       if mu != nil {
-	       mu.RLock()
-	       defer mu.RUnlock()
-       }
+		   // Use exported accessors instead of reflection/unsafe
+		   var mu *sync.RWMutex
+		   var sh interface{ CronJobs() []cron.Entry }
+		var dockerHandler interface{ GetInternalDockerClients() map[string]*docker.Client }
+		   if config != nil {
+		   	mu = config.GetMutex()
+		   	sh = config.GetScheduler()
+		   	dockerHandler = config.GetDockerHandler()
+		   }
+		   if mu != nil {
+		   	mu.RLock()
+		   	defer mu.RUnlock()
+		   }
 
        type cronTiming struct{ next, prev time.Time }
        timings := map[int]cronTiming{}

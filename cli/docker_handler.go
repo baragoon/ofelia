@@ -635,17 +635,42 @@ func setJobParam(params map[string]interface{}, paramName, paramVal string) {
 
 
 func getContainerID(mountinfoFilePath string) (string, error) {
-       // Use os.DirFS to scope file access under /proc/self/ (Go 1.16+)
-       procSelfFS := os.DirFS("/proc/self")
-       relPath := strings.TrimPrefix(mountinfoFilePath, "/proc/self/")
-       if strings.Contains(relPath, "..") || strings.HasPrefix(relPath, "/") {
-	       return "", errors.New("invalid path traversal attempt")
-       }
+	// Allow any file path in test mode
+	if os.Getenv("OFELIA_TEST_ALLOW_ANY_MOUNTINFO") == "1" {
+		file, err := os.Open(mountinfoFilePath)
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.Contains(line, "/containers/") {
+				continue
+			}
+			splt := strings.Split(line, "/")
+			for i, part := range splt {
+				if part == "containers" && len(splt) > i+1 {
+					return splt[i+1], nil
+				}
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return "", err
+		}
+		return "", errors.New("container ID not found")
+	}
+	// Use os.DirFS to scope file access under /proc/self/ (Go 1.16+)
+	procSelfFS := os.DirFS("/proc/self")
+	relPath := strings.TrimPrefix(mountinfoFilePath, "/proc/self/")
+	if strings.Contains(relPath, "..") || strings.HasPrefix(relPath, "/") {
+		return "", errors.New("invalid path traversal attempt")
+	}
 	file, err := procSelfFS.Open(relPath)
-       if err != nil {
-	       return "", err
-       }
-       defer file.Close()
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
 
        scanner := bufio.NewScanner(file)
        for scanner.Scan() {

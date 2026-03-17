@@ -116,8 +116,9 @@ func (s *SuiteRunServiceJob) TestBuildPullImageOptionsRegistry(c *C) {
 func (s *SuiteRunServiceJob) buildImage(c *C) {
 	inputbuf := bytes.NewBuffer(nil)
 	tr := tar.NewWriter(inputbuf)
-	tr.WriteHeader(&tar.Header{Name: "Dockerfile"})
-	tr.Write([]byte("FROM base\n"))
+	dockerfile := []byte("FROM base\n")
+	tr.WriteHeader(&tar.Header{Name: "Dockerfile", Size: int64(len(dockerfile))})
+	tr.Write(dockerfile)
 	tr.Close()
 
 	err := s.client.BuildImage(docker.BuildImageOptions{
