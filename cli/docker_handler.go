@@ -39,6 +39,7 @@ const (
 
 type DockerHandler struct {
 	dockerClients     map[string]*docker.Client
+	pendingHosts      []string
 	primaryDockerHost string
 	notifier          labelConfigUpdater
 	configsFromLabels bool
@@ -175,11 +176,13 @@ func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels 
 		d, resolvedHost, err := c.buildDockerClient(host)
 		if err != nil {
 			c.logger.Warningf("Skipping Docker host %q: failed to build client: %v", strings.TrimSpace(host), err)
+			c.pendingHosts = append(c.pendingHosts, host)
 			continue
 		}
 		// Do a sanity check on docker.
 		if _, err := d.Info(); err != nil {
-			c.logger.Warningf("Skipping Docker host %q: failed health check: %v", resolvedHost, err)
+			c.logger.Warningf("Docker host %q is unreachable: %v; will retry in background", resolvedHost, err)
+			c.pendingHosts = append(c.pendingHosts, host)
 			continue
 		}
 
@@ -191,7 +194,12 @@ func NewDockerHandler(config *Config, dockerFilters []string, configsFromLabels 
 	}
 
 	if len(c.dockerClients) == 0 {
-		return nil, fmt.Errorf("no reachable docker hosts from %d configured host(s)", len(hosts))
+		if c.configsFromLabels && len(c.pendingHosts) > 0 {
+			// All hosts are currently unreachable; allow startup and retry in watch loop.
+			c.logger.Warningf("No reachable docker hosts at startup; will keep retrying %d host(s) in background", len(c.pendingHosts))
+		} else {
+			return nil, fmt.Errorf("no reachable docker hosts from %d configured host(s)", len(hosts))
+		}
 	}
 
 	if c.configsFromLabels {
@@ -374,6 +382,7 @@ func (c *DockerHandler) watch() {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for range ticker.C {
+		c.retryPendingHosts()
 		labels, err := c.GetDockerLabels()
 		// Do not print or care if there is no container up right now
 		if err != nil && !errors.Is(err, errNoContainersMatchingFilters) {
@@ -381,6 +390,33 @@ func (c *DockerHandler) watch() {
 		}
 		c.notifier.dockerLabelsUpdate(labels)
 	}
+}
+
+func (c *DockerHandler) retryPendingHosts() {
+	if len(c.pendingHosts) == 0 {
+		return
+	}
+
+	stillPending := c.pendingHosts[:0]
+	for _, host := range c.pendingHosts {
+		d, resolvedHost, err := c.buildDockerClient(host)
+		if err != nil {
+			stillPending = append(stillPending, host)
+			continue
+		}
+		if _, err := d.Info(); err != nil {
+			stillPending = append(stillPending, host)
+			continue
+		}
+
+		hostKey := normalizeDockerHostKey(resolvedHost)
+		c.dockerClients[hostKey] = d
+		if c.primaryDockerHost == "" {
+			c.primaryDockerHost = hostKey
+		}
+		c.logger.Noticef("Docker host %q is now reachable and has been registered", resolvedHost)
+	}
+	c.pendingHosts = stillPending
 }
 
 func (c *DockerHandler) WaitForLabels() {

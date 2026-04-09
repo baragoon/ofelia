@@ -18,6 +18,13 @@ const (
 	defaultWebUIRefresh     = 10
 )
 
+// UIServer abstracts the web UI lifecycle so the cli package does not need to
+// import the webui package (which itself imports cli).
+type UIServer interface {
+	Start() error
+	Stop(ctx context.Context) error
+}
+
 // DaemonCommand daemon process
 type DaemonCommand struct {
 	ConfigFile        string   `long:"config" description:"configuration file" default:"/etc/ofelia.conf"`
@@ -32,8 +39,11 @@ type DaemonCommand struct {
 	DockerCACert      string   `long:"docker-ca-cert" description:"path to CA certificate PEM file for docker TLS"`
 	DockerCert        string   `long:"docker-cert" description:"path to client certificate PEM file for docker TLS"`
 	DockerKey         string   `long:"docker-key" description:"path to client key PEM file for docker TLS"`
+	// UIServerFactory is called during boot to create the web UI server.
+	// Injected by the caller to avoid a circular import with the webui package.
+	UIServerFactory   func(bind string, refresh int, config *Config, logger core.Logger) UIServer
 	scheduler         *core.Scheduler
-	uiServer          *webUIServer
+	uiServer          UIServer
 	signals           chan os.Signal
 	done              chan bool
 	Logger            core.Logger
@@ -99,8 +109,8 @@ func (c *DaemonCommand) boot() (err error) {
 
 	c.scheduler = config.sh
 
-	if c.WebUI {
-		c.uiServer = newWebUIServer(c.WebUIBind, c.WebUIRefreshSec, config, c.Logger)
+	if c.WebUI && c.UIServerFactory != nil {
+		c.uiServer = c.UIServerFactory(c.WebUIBind, c.WebUIRefreshSec, config, c.Logger)
 	}
 
 	return err

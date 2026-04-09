@@ -7,6 +7,7 @@ import (
 
 	"github.com/baragoon/ofelia/cli"
 	"github.com/baragoon/ofelia/core"
+	"github.com/baragoon/ofelia/webui"
 	"github.com/jessevdk/go-flags"
 	"github.com/op/go-logging"
 )
@@ -35,7 +36,13 @@ func main() {
 	       }
 	       logger := buildLogger()
 	       parser := flags.NewNamedParser("ofelia", flags.Default)
-	       if _, err := parser.AddCommand("daemon", "daemon process", "", &cli.DaemonCommand{Logger: logger}); err != nil {
+	       daemonCmd := &cli.DaemonCommand{
+			Logger: logger,
+			UIServerFactory: func(bind string, refresh int, config *cli.Config, log core.Logger) cli.UIServer {
+				return webui.NewWebUIServer(bind, refresh, config, log)
+			},
+		}
+	       if _, err := parser.AddCommand("daemon", "daemon process", "", daemonCmd); err != nil {
 		       fmt.Fprintf(os.Stderr, "Error adding daemon command: %v\n", err)
 		       os.Exit(1)
 	       }
