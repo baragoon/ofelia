@@ -67,20 +67,20 @@ type lastExecProvider interface {
 
 // Returns lastRun, exitOK, output for a job's last execution.
 func lastRunFields(p lastExecProvider) (lastRun time.Time, exitOK *bool, output string) {
-       exec := p.GetLastExecution()
-       if exec == nil {
-	       return
-       }
-       lastRun = exec.Date
-       ok := !exec.Failed && !exec.Skipped
-       exitOK = &ok
-       // Prefer OutputStream if available, else fallback to fmt.Sprint(exec)
-       if exec.OutputStream != nil {
-	       output = exec.OutputStream.String()
-       } else {
-	       output = fmt.Sprint(exec)
-       }
-       return
+	exec := p.GetLastExecution()
+	if exec == nil {
+		return
+	}
+	lastRun = exec.Date
+	ok := !exec.Failed && !exec.Skipped
+	exitOK = &ok
+	// Prefer OutputStream if available, else fallback to fmt.Sprint(exec)
+	if exec.OutputStream != nil {
+		output = exec.OutputStream.String()
+	} else {
+		output = fmt.Sprint(exec)
+	}
+	return
 }
 
 type webUIHost struct {
@@ -227,10 +227,13 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
   <title>Ofelia</title>
   <style>
-    :root { --bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37; }
-    [data-theme="dark"] { --bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843; }
+		:root,[data-theme="light"] { --bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37; }
+		[data-theme="dark"] { --bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843;--ok:#58d26a;--fail:#ff7b72;--running:#4caf50; }
+		@media (prefers-color-scheme: dark) {
+			[data-theme="auto"] { --bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843;--ok:#58d26a;--fail:#ff7b72;--running:#4caf50; }
+		}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh}
+	body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;color-scheme:light dark}
     header{background:var(--header-bg);color:var(--header-fg);padding:.65rem 1.5rem;display:flex;align-items:center;gap:.6rem}
     .brand-dot{color:var(--ok);font-size:1.1rem}.brand{font-size:1rem;font-weight:700;letter-spacing:-.2px}
     .stats-bar{margin-left:auto;display:flex;gap:1.25rem;font-size:.8rem;color:var(--header-fg);align-items:center;opacity:.7}
@@ -277,10 +280,13 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
   <title>Ofelia &mdash; {{.Title}}</title>
   <style>
-    :root{--bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37}
-    [data-theme="dark"]{--bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843}
+		:root,[data-theme="light"]{--bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37}
+		[data-theme="dark"]{--bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843;--ok:#58d26a;--fail:#ff7b72;--running:#4caf50}
+		@media (prefers-color-scheme: dark){
+			[data-theme="auto"]{--bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843;--ok:#58d26a;--fail:#ff7b72;--running:#4caf50}
+		}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh}
+	body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;color-scheme:light dark}
     header{background:var(--header-bg);color:var(--header-fg);padding:.65rem 1.5rem;display:flex;align-items:center;gap:.6rem}
     .brand-dot{color:var(--ok);font-size:1.1rem}.brand{font-size:1rem;font-weight:700;letter-spacing:-.2px}
     .stats-bar{margin-left:auto;display:flex;gap:1.25rem;font-size:.8rem;color:var(--header-fg);opacity:.7;align-items:center}
@@ -362,211 +368,211 @@ func (s *webUIServer) Stop(ctx context.Context) error {
 
 // ...existing code...
 
-
 func buildWebUIState(config *cli.Config) webUIState {
-       hosts := make(map[string]*webUIHost)
-       getHost := func(key string) *webUIHost {
-	       key = strings.TrimSpace(key)
-	       if key == "" {
-		       key = localHostKey
-	       }
-	       h, ok := hosts[key]
-	       if ok {
-		       return h
-	       }
-	       h = &webUIHost{Key: key, Title: hostTitle(key)}
-	       hosts[key] = h
-	       return h
-       }
+	hosts := make(map[string]*webUIHost)
+	getHost := func(key string) *webUIHost {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			key = localHostKey
+		}
+		h, ok := hosts[key]
+		if ok {
+			return h
+		}
+		h = &webUIHost{Key: key, Title: hostTitle(key)}
+		hosts[key] = h
+		return h
+	}
 
-		   // Use exported accessors instead of reflection/unsafe
-		   var mu *sync.RWMutex
-		   var sh interface{ CronJobs() []cron.Entry }
-		var dockerHandler interface{ GetInternalDockerClients() map[string]*docker.Client }
-		   if config != nil {
-		   	mu = config.GetMutex()
-		   	sh = config.GetScheduler()
-		   	dockerHandler = config.GetDockerHandler()
-		   }
-		   if mu != nil {
-		   	mu.RLock()
-		   	defer mu.RUnlock()
-		   }
+	// Use exported accessors instead of reflection/unsafe
+	var mu *sync.RWMutex
+	var sh interface{ CronJobs() []cron.Entry }
+	var dockerHandler interface {
+		GetInternalDockerClients() map[string]*docker.Client
+	}
+	if config != nil {
+		mu = config.GetMutex()
+		sh = config.GetScheduler()
+		dockerHandler = config.GetDockerHandler()
+	}
+	if mu != nil {
+		mu.RLock()
+		defer mu.RUnlock()
+	}
 
-       type cronTiming struct{ next, prev time.Time }
-       timings := map[int]cronTiming{}
-       if sh != nil {
-	       for _, e := range sh.CronJobs() {
-		       timings[int(e.ID)] = cronTiming{next: e.Next, prev: e.Prev}
-	       }
-       }
+	type cronTiming struct{ next, prev time.Time }
+	timings := map[int]cronTiming{}
+	if sh != nil {
+		for _, e := range sh.CronJobs() {
+			timings[int(e.ID)] = cronTiming{next: e.Next, prev: e.Prev}
+		}
+	}
 
-       if dockerHandler != nil {
-	       for hostKey := range dockerHandler.GetInternalDockerClients() {
-		       _ = getHost(hostKey)
-	       }
-       }
+	if dockerHandler != nil {
+		for hostKey := range dockerHandler.GetInternalDockerClients() {
+			_ = getHost(hostKey)
+		}
+	}
 
-       if config != nil {
-		       for jobName, job := range config.ExecJobs {
-			       host, name := splitHostPrefixedJobName(jobName)
-			       if strings.TrimSpace(job.DockerHost) != "" {
-				       host = job.DockerHost
-			       }
-			       name = trimContainerPrefixedJobName(name)
-			       t := timings[job.GetCronJobID()]
-			       lr, exitOK, lout := lastRunFields(&job.ExecJob.BareJob)
-			       wjob := webUIJob{
-				       Name:             name,
-				       Type:             "exec",
-				       Schedule:         job.Schedule,
-				       Command:          maskSecrets(job.Command),
-				       MultilineCommand: isMultilineCommand(job.Command),
-				       Target:           job.Container,
-				       NextRun:          t.next,
-				       LastRun:          lr,
-				       Running:          job.Running() > 0,
-				       LastOutput:       lout,
-			       }
-			       if !lr.IsZero() && exitOK != nil {
-				       wjob.LastExitOK = exitOK
-			       }
-			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
-	       }
+	if config != nil {
+		for jobName, job := range config.ExecJobs {
+			host, name := splitHostPrefixedJobName(jobName)
+			if strings.TrimSpace(job.DockerHost) != "" {
+				host = job.DockerHost
+			}
+			name = trimContainerPrefixedJobName(name)
+			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.ExecJob.BareJob)
+			wjob := webUIJob{
+				Name:             name,
+				Type:             "exec",
+				Schedule:         job.Schedule,
+				Command:          maskSecrets(job.Command),
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           job.Container,
+				NextRun:          t.next,
+				LastRun:          lr,
+				Running:          job.Running() > 0,
+				LastOutput:       lout,
+			}
+			if !lr.IsZero() && exitOK != nil {
+				wjob.LastExitOK = exitOK
+			}
+			getHost(host).Jobs = append(getHost(host).Jobs, wjob)
+		}
 
-		       for jobName, job := range config.RunJobs {
-			       host, name := splitHostPrefixedJobName(jobName)
-			       if strings.TrimSpace(job.DockerHost) != "" {
-				       host = job.DockerHost
-			       }
-			       target := strings.TrimSpace(job.Image)
-			       if target == "" {
-				       target = strings.TrimSpace(job.Container)
-			       }
-			       t := timings[job.GetCronJobID()]
-			       lr, exitOK, lout := lastRunFields(&job.RunJob.BareJob)
-			       wjob := webUIJob{
-				       Name:             name,
-				       Type:             "run",
-				       Schedule:         job.Schedule,
-				       Command:          maskSecrets(job.Command),
-				       MultilineCommand: isMultilineCommand(job.Command),
-				       Target:           target,
-				       NextRun:          t.next,
-				       LastRun:          lr,
-				       Running:          job.Running() > 0,
-				       LastOutput:       lout,
-			       }
-			       if !lr.IsZero() && exitOK != nil {
-				       wjob.LastExitOK = exitOK
-			       }
-			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
-	       }
+		for jobName, job := range config.RunJobs {
+			host, name := splitHostPrefixedJobName(jobName)
+			if strings.TrimSpace(job.DockerHost) != "" {
+				host = job.DockerHost
+			}
+			target := strings.TrimSpace(job.Image)
+			if target == "" {
+				target = strings.TrimSpace(job.Container)
+			}
+			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.RunJob.BareJob)
+			wjob := webUIJob{
+				Name:             name,
+				Type:             "run",
+				Schedule:         job.Schedule,
+				Command:          maskSecrets(job.Command),
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           target,
+				NextRun:          t.next,
+				LastRun:          lr,
+				Running:          job.Running() > 0,
+				LastOutput:       lout,
+			}
+			if !lr.IsZero() && exitOK != nil {
+				wjob.LastExitOK = exitOK
+			}
+			getHost(host).Jobs = append(getHost(host).Jobs, wjob)
+		}
 
-		       for jobName, job := range config.ServiceJobs {
-			       host, name := splitHostPrefixedJobName(jobName)
-			       if strings.TrimSpace(job.DockerHost) != "" {
-				       host = job.DockerHost
-			       }
-			       t := timings[job.GetCronJobID()]
-			       lr, exitOK, lout := lastRunFields(&job.RunServiceJob.BareJob)
-			       wjob := webUIJob{
-				       Name:             name,
-				       Type:             "service-run",
-				       Schedule:         job.Schedule,
-				       Command:          maskSecrets(job.Command),
-				       MultilineCommand: isMultilineCommand(job.Command),
-				       Target:           job.Image,
-				       NextRun:          t.next,
-				       LastRun:          lr,
-				       Running:          job.Running() > 0,
-				       LastOutput:       lout,
-			       }
-			       if !lr.IsZero() && exitOK != nil {
-				       wjob.LastExitOK = exitOK
-			       }
-			       getHost(host).Jobs = append(getHost(host).Jobs, wjob)
-	       }
+		for jobName, job := range config.ServiceJobs {
+			host, name := splitHostPrefixedJobName(jobName)
+			if strings.TrimSpace(job.DockerHost) != "" {
+				host = job.DockerHost
+			}
+			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.RunServiceJob.BareJob)
+			wjob := webUIJob{
+				Name:             name,
+				Type:             "service-run",
+				Schedule:         job.Schedule,
+				Command:          maskSecrets(job.Command),
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           job.Image,
+				NextRun:          t.next,
+				LastRun:          lr,
+				Running:          job.Running() > 0,
+				LastOutput:       lout,
+			}
+			if !lr.IsZero() && exitOK != nil {
+				wjob.LastExitOK = exitOK
+			}
+			getHost(host).Jobs = append(getHost(host).Jobs, wjob)
+		}
 
-		       for jobName, job := range config.LocalJobs {
-			       t := timings[job.GetCronJobID()]
-			       lr, exitOK, lout := lastRunFields(&job.LocalJob.BareJob)
-			       wjob := webUIJob{
-				       Name:             jobName,
-				       Type:             "local",
-				       Schedule:         job.Schedule,
-				       Command:          maskSecrets(job.Command),
-				       MultilineCommand: isMultilineCommand(job.Command),
-				       Target:           job.Dir,
-				       NextRun:          t.next,
-				       LastRun:          lr,
-				       Running:          job.Running() > 0,
-				       LastOutput:       lout,
-			       }
-			       if !lr.IsZero() && exitOK != nil {
-				       wjob.LastExitOK = exitOK
-			       }
-			       getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, wjob)
-	       }
-       }
+		for jobName, job := range config.LocalJobs {
+			t := timings[job.GetCronJobID()]
+			lr, exitOK, lout := lastRunFields(&job.LocalJob.BareJob)
+			wjob := webUIJob{
+				Name:             jobName,
+				Type:             "local",
+				Schedule:         job.Schedule,
+				Command:          maskSecrets(job.Command),
+				MultilineCommand: isMultilineCommand(job.Command),
+				Target:           job.Dir,
+				NextRun:          t.next,
+				LastRun:          lr,
+				Running:          job.Running() > 0,
+				LastOutput:       lout,
+			}
+			if !lr.IsZero() && exitOK != nil {
+				wjob.LastExitOK = exitOK
+			}
+			getHost(localHostKey).Jobs = append(getHost(localHostKey).Jobs, wjob)
+		}
+	}
 
-       hostList := make([]webUIHost, 0, len(hosts))
-       totalJobs := 0
-       totalRunning := 0
+	hostList := make([]webUIHost, 0, len(hosts))
+	totalJobs := 0
+	totalRunning := 0
 
-	       for _, host := range hosts {
-		       // Deterministically sort jobs by Name, then Type
-		       if len(host.Jobs) > 1 {
-			       sort.Slice(host.Jobs, func(i, j int) bool {
-				       if host.Jobs[i].Name != host.Jobs[j].Name {
-					       return host.Jobs[i].Name < host.Jobs[j].Name
-				       }
-				       return host.Jobs[i].Type < host.Jobs[j].Type
-			       })
-		       }
-		       host.JobCount = len(host.Jobs)
-		       for _, j := range host.Jobs {
-			       if j.Running {
-				       host.RunningCount++
-				       totalRunning++
-			       }
-			       if j.MultilineCommand {
-				       host.HasMultilineCommands = true
-			       }
-			       if !j.NextRun.IsZero() && (host.NextRun.IsZero() || j.NextRun.Before(host.NextRun)) {
-				       host.NextRun = j.NextRun
-			       }
-		       }
-		       totalJobs += len(host.Jobs)
-		       hostList = append(hostList, *host)
-	       }
+	for _, host := range hosts {
+		// Deterministically sort jobs by Name, then Type
+		if len(host.Jobs) > 1 {
+			sort.Slice(host.Jobs, func(i, j int) bool {
+				if host.Jobs[i].Name != host.Jobs[j].Name {
+					return host.Jobs[i].Name < host.Jobs[j].Name
+				}
+				return host.Jobs[i].Type < host.Jobs[j].Type
+			})
+		}
+		host.JobCount = len(host.Jobs)
+		for _, j := range host.Jobs {
+			if j.Running {
+				host.RunningCount++
+				totalRunning++
+			}
+			if j.MultilineCommand {
+				host.HasMultilineCommands = true
+			}
+			if !j.NextRun.IsZero() && (host.NextRun.IsZero() || j.NextRun.Before(host.NextRun)) {
+				host.NextRun = j.NextRun
+			}
+		}
+		totalJobs += len(host.Jobs)
+		hostList = append(hostList, *host)
+	}
 
-	       // Deterministically sort hosts: localHostKey first, then by Key
-	       if len(hostList) > 1 {
-		       sort.Slice(hostList, func(i, j int) bool {
-			       if hostList[i].Key == localHostKey {
-				       return true
-			       }
-			       if hostList[j].Key == localHostKey {
-				       return false
-			       }
-			       return hostList[i].Key < hostList[j].Key
-		       })
-	       }
+	// Deterministically sort hosts: localHostKey first, then by Key
+	if len(hostList) > 1 {
+		sort.Slice(hostList, func(i, j int) bool {
+			if hostList[i].Key == localHostKey {
+				return true
+			}
+			if hostList[j].Key == localHostKey {
+				return false
+			}
+			return hostList[i].Key < hostList[j].Key
+		})
+	}
 
-       return webUIState{
-	       Hosts:        hostList,
-	       TotalHosts:   len(hostList),
-	       TotalJobs:    totalJobs,
-	       TotalRunning: totalRunning,
-       }
+	return webUIState{
+		Hosts:        hostList,
+		TotalHosts:   len(hostList),
+		TotalJobs:    totalJobs,
+		TotalRunning: totalRunning,
+	}
 }
 
 // Template helpers and templates (copied from cli/web_ui.go)
 // ...existing code...
 
 // ...existing code...
-
 
 func splitHostPrefixedJobName(name string) (host, jobName string) {
 	host = localHostKey
