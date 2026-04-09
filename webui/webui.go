@@ -227,10 +227,13 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
   <title>Ofelia</title>
   <style>
-    :root { --bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37; }
-    [data-theme="dark"] { --bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843; }
+		:root,[data-theme="light"] { --bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37; }
+		[data-theme="dark"] { --bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843; }
+		@media (prefers-color-scheme: dark) {
+			[data-theme="auto"] { --bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843; }
+		}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh}
+	body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;color-scheme:light dark}
     header{background:var(--header-bg);color:var(--header-fg);padding:.65rem 1.5rem;display:flex;align-items:center;gap:.6rem}
     .brand-dot{color:var(--ok);font-size:1.1rem}.brand{font-size:1rem;font-weight:700;letter-spacing:-.2px}
     .stats-bar{margin-left:auto;display:flex;gap:1.25rem;font-size:.8rem;color:var(--header-fg);align-items:center;opacity:.7}
@@ -277,10 +280,13 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
   <meta http-equiv="refresh" content="{{.RefreshSeconds}}">
   <title>Ofelia &mdash; {{.Title}}</title>
   <style>
-    :root{--bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37}
-    [data-theme="dark"]{--bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843}
+		:root,[data-theme="light"]{--bg:#f0f2f5;--fg:#1a1f36;--header-bg:#0d1117;--header-fg:#fff;--card-bg:#fff;--card-border:#e5e7eb;--ok:#3fb950;--fail:#f85149;--running:#1a7f37}
+		[data-theme="dark"]{--bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843}
+		@media (prefers-color-scheme: dark){
+			[data-theme="auto"]{--bg:#181a1b;--fg:#e5e7eb;--header-bg:#23272e;--header-fg:#fff;--card-bg:#23272e;--card-border:#333843}
+		}
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh}
+	body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;color-scheme:light dark}
     header{background:var(--header-bg);color:var(--header-fg);padding:.65rem 1.5rem;display:flex;align-items:center;gap:.6rem}
     .brand-dot{color:var(--ok);font-size:1.1rem}.brand{font-size:1rem;font-weight:700;letter-spacing:-.2px}
     .stats-bar{margin-left:auto;display:flex;gap:1.25rem;font-size:.8rem;color:var(--header-fg);opacity:.7;align-items:center}
