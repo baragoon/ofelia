@@ -1,5 +1,7 @@
 # Ofelia - a job scheduler [![GitHub version](https://badge.fury.io/gh/baragoon%2Fofelia.svg)](https://github.com/baragoon/ofelia/releases) ![Test](https://github.com/baragoon/ofelia/workflows/Test/badge.svg)
 
+Forked from https://github.com/mcuadros/ofelia
+
 ![Ofelia character](https://weirdspace.dk/FranciscoIbanez/Graphics/Ofelia.gif)
 
 **Ofelia** is a modern and low footprint job scheduler for **docker** environments, built on Go. Ofelia aims to be a replacement for the old fashioned [cron](https://en.wikipedia.org/wiki/Cron).
