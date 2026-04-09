@@ -1,6 +1,6 @@
 module github.com/baragoon/ofelia
 
-go 1.25.7
+go 1.25
 
 toolchain go1.26.2
 
