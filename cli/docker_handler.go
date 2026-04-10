@@ -19,7 +19,6 @@ import (
 )
 
 const (
-       
 	labelPrefix = "ofelia"
 
 	requiredLabel       = labelPrefix + ".enabled"
@@ -103,12 +102,12 @@ func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, 
 		return d, resolvedHost, nil
 	}
 
-	ca, cert, key := c.resolveTLSFiles()
 	globalTLSVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
 	tlsVerify := shouldUseTLSForHost(host, globalTLSVerify)
 	if tlsVerify {
+		ca, cert, key := c.resolveTLSFiles()
 		if os.Getenv("OFELIA_ALLOW_INSECURE_TLS") == "1" {
-				fmt.Fprintf(os.Stderr, "Warning: OFELIA_ALLOW_INSECURE_TLS is set, but TLS verification is always enforced for security. This option is ignored.\n")
+			fmt.Fprintf(os.Stderr, "Warning: OFELIA_ALLOW_INSECURE_TLS is set, but TLS verification is always enforced for security. This option is ignored.\n")
 		}
 		if ca == "" || cert == "" || key == "" {
 			return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
@@ -150,6 +149,10 @@ func shouldUseTLSForHost(host string, globalTLSVerify bool) bool {
 		// Port 2375 is conventionally plain HTTP Docker API.
 		if u.Port() == "2375" {
 			return false
+		}
+		// Port 2376 is conventionally Docker TLS API.
+		if u.Port() == "2376" {
+			return true
 		}
 	}
 
@@ -697,7 +700,6 @@ func setJobParam(params map[string]interface{}, paramName, paramVal string) {
 	params[paramName] = paramVal
 }
 
-
 func getContainerID(mountinfoFilePath string) (string, error) {
 	// Allow any file path in test mode
 	if os.Getenv("OFELIA_TEST_ALLOW_ANY_MOUNTINFO") == "1" {
@@ -736,21 +738,21 @@ func getContainerID(mountinfoFilePath string) (string, error) {
 	}
 	defer file.Close()
 
-       scanner := bufio.NewScanner(file)
-       for scanner.Scan() {
-	       line := scanner.Text()
-	       if !strings.Contains(line, "/containers/") {
-		       continue
-	       }
-	       splt := strings.Split(line, "/")
-	       for i, part := range splt {
-		       if part == "containers" && len(splt) > i+1 {
-			       return splt[i+1], nil
-		       }
-	       }
-       }
-       if err := scanner.Err(); err != nil {
-	       return "", err
-       }
-       return "", errors.New("container ID not found")
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "/containers/") {
+			continue
+		}
+		splt := strings.Split(line, "/")
+		for i, part := range splt {
+			if part == "containers" && len(splt) > i+1 {
+				return splt[i+1], nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", errors.New("container ID not found")
 }

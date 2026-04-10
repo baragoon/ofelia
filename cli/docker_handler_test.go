@@ -354,6 +354,7 @@ func (s *TestDockerSuit) TestShouldUseTLSForHost(c *check.C) {
 		expected  bool
 	}{
 		{name: "global TLS for tcp 2376", host: "tcp://secure.example:2376", globalTLS: true, expected: true},
+		{name: "force TLS for tcp 2376 even when global is off", host: "tcp://secure.example:2376", globalTLS: false, expected: true},
 		{name: "disable TLS for tcp 2375", host: "tcp://socket-proxy:2375", globalTLS: true, expected: false},
 		{name: "disable TLS for explicit http", host: "http://socket-proxy:2375", globalTLS: true, expected: false},
 		{name: "force TLS for explicit https", host: "https://secure.example:2376", globalTLS: false, expected: true},
