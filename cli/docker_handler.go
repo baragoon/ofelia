@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,7 +19,6 @@ import (
 )
 
 const (
-       
 	labelPrefix = "ofelia"
 
 	requiredLabel       = labelPrefix + ".enabled"
@@ -102,23 +102,24 @@ func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, 
 		return d, resolvedHost, nil
 	}
 
-	       ca, cert, key := c.resolveTLSFiles()
-	       tlsVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
-	       if tlsVerify {
-		       if os.Getenv("OFELIA_ALLOW_INSECURE_TLS") == "1" {
-				fmt.Fprintf(os.Stderr, "Warning: OFELIA_ALLOW_INSECURE_TLS is set, but TLS verification is always enforced for security. This option is ignored.\n")
-		       }
-		       if ca == "" || cert == "" || key == "" {
-			       return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
-		       }
+	globalTLSVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
+	tlsVerify := shouldUseTLSForHost(host, globalTLSVerify)
+	if tlsVerify {
+		ca, cert, key := c.resolveTLSFiles()
+		if os.Getenv("OFELIA_ALLOW_INSECURE_TLS") == "1" {
+			fmt.Fprintf(os.Stderr, "Warning: OFELIA_ALLOW_INSECURE_TLS is set, but TLS verification is always enforced for security. This option is ignored.\n")
+		}
+		if ca == "" || cert == "" || key == "" {
+			return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
+		}
 
-		       d, err := docker.NewTLSClient(host, cert, key, ca)
-		       if err != nil {
-			       return nil, "", err
-		       }
+		d, err := docker.NewTLSClient(host, cert, key, ca)
+		if err != nil {
+			return nil, "", err
+		}
 
-		       return d, host, nil
-	       }
+		return d, host, nil
+	}
 
 	d, err := docker.NewClient(host)
 	if err != nil {
@@ -126,6 +127,36 @@ func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, 
 	}
 
 	return d, host, nil
+}
+
+func shouldUseTLSForHost(host string, globalTLSVerify bool) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return globalTLSVerify
+	}
+
+	u, err := url.Parse(host)
+	if err != nil || u.Scheme == "" {
+		return globalTLSVerify
+	}
+
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return true
+	case "http", "unix", "npipe":
+		return false
+	case "tcp":
+		// Port 2375 is conventionally plain HTTP Docker API.
+		if u.Port() == "2375" {
+			return false
+		}
+		// Port 2376 is conventionally Docker TLS API.
+		if u.Port() == "2376" {
+			return true
+		}
+	}
+
+	return globalTLSVerify
 }
 
 func (c *DockerHandler) resolveTLSFiles() (ca, cert, key string) {
@@ -466,10 +497,19 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 
 	var labels = make(map[string]map[string]string)
 	missingHosts := 0
+	failedHosts := 0
+	listErrors := make(map[string]error)
+	if len(c.dockerClients) == 0 {
+		return nil, errNoContainersMatchingFilters
+	}
+
 	for host, dc := range c.dockerClients {
 		conts, err := dc.ListContainers(docker.ListContainersOptions{Filters: filters})
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", errFailedToListContainers, err)
+			failedHosts++
+			listErrors[host] = err
+			c.logger.Warningf("Failed to list containers on Docker host %q: %v", host, err)
+			continue
 		}
 
 		if len(conts) == 0 {
@@ -498,7 +538,14 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 		}
 	}
 
-	if missingHosts == len(c.dockerClients) {
+	if failedHosts == len(c.dockerClients) {
+		return nil, fmt.Errorf("%w: %v", errFailedToListContainers, listErrors)
+	}
+
+	if missingHosts+failedHosts == len(c.dockerClients) {
+		if failedHosts > 0 {
+			return nil, fmt.Errorf("%w: %v", errFailedToListContainers, listErrors)
+		}
 		return nil, fmt.Errorf("%w: %v", errNoContainersMatchingFilters, filters)
 	}
 
@@ -669,7 +716,6 @@ func setJobParam(params map[string]interface{}, paramName, paramVal string) {
 	params[paramName] = paramVal
 }
 
-
 func getContainerID(mountinfoFilePath string) (string, error) {
 	// Allow any file path in test mode
 	if os.Getenv("OFELIA_TEST_ALLOW_ANY_MOUNTINFO") == "1" {
@@ -708,21 +754,21 @@ func getContainerID(mountinfoFilePath string) (string, error) {
 	}
 	defer file.Close()
 
-       scanner := bufio.NewScanner(file)
-       for scanner.Scan() {
-	       line := scanner.Text()
-	       if !strings.Contains(line, "/containers/") {
-		       continue
-	       }
-	       splt := strings.Split(line, "/")
-	       for i, part := range splt {
-		       if part == "containers" && len(splt) > i+1 {
-			       return splt[i+1], nil
-		       }
-	       }
-       }
-       if err := scanner.Err(); err != nil {
-	       return "", err
-       }
-       return "", errors.New("container ID not found")
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.Contains(line, "/containers/") {
+			continue
+		}
+		splt := strings.Split(line, "/")
+		for i, part := range splt {
+			if part == "containers" && len(splt) > i+1 {
+				return splt[i+1], nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", errors.New("container ID not found")
 }

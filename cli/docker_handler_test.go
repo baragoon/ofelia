@@ -3,6 +3,8 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 
@@ -251,6 +253,85 @@ func (s *TestDockerSuit) TestExecJobNameIncludesContainerForRemoteHost(c *check.
 	}
 }
 
+func (s *TestDockerSuit) TestGetDockerLabelsSkipsFailedHosts(c *check.C) {
+	containersToStartWithLabels := []map[string]string{
+		{
+			requiredLabel: "true",
+			labelPrefix + "." + jobExec + ".datecron.schedule": "* * * * *",
+			labelPrefix + "." + jobExec + ".datecron.command":  "date",
+		},
+	}
+
+	_, err := s.startTestContainersWithLabels(containersToStartWithLabels)
+	c.Assert(err, check.IsNil)
+
+	forbiddenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+	}))
+	defer forbiddenServer.Close()
+
+	forbiddenClient, err := docker.NewClient(forbiddenServer.URL)
+	c.Assert(err, check.IsNil)
+
+	h := &DockerHandler{
+		dockerClients: map[string]*docker.Client{
+			"bad-host":  forbiddenClient,
+			"good-host": s.client,
+		},
+		logger: &TestLogger{},
+	}
+
+	labels, err := h.GetDockerLabels()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(labels) > 0, check.Equals, true)
+
+	foundGoodHost := false
+	for containerRef := range labels {
+		host, _ := splitContainerRef(containerRef)
+		if host == "good-host" {
+			foundGoodHost = true
+			break
+		}
+	}
+	c.Assert(foundGoodHost, check.Equals, true)
+}
+
+func (s *TestDockerSuit) TestGetDockerLabelsAllHostsFailed(c *check.C) {
+	forbiddenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+	}))
+	defer forbiddenServer.Close()
+
+	forbiddenClient, err := docker.NewClient(forbiddenServer.URL)
+	c.Assert(err, check.IsNil)
+
+	h := &DockerHandler{
+		dockerClients: map[string]*docker.Client{
+			"bad-host": forbiddenClient,
+		},
+		logger: &TestLogger{},
+	}
+
+	labels, err := h.GetDockerLabels()
+	c.Assert(labels, check.IsNil)
+	c.Assert(errors.Is(err, errFailedToListContainers), check.Equals, true)
+}
+
+func (s *TestDockerSuit) TestGetDockerLabelsNoClientsConfigured(c *check.C) {
+	h := &DockerHandler{
+		dockerClients: map[string]*docker.Client{},
+		logger:        &TestLogger{},
+	}
+
+	labels, err := h.GetDockerLabels()
+	c.Assert(labels, check.IsNil)
+	c.Assert(errors.Is(err, errNoContainersMatchingFilters), check.Equals, true)
+}
+
 func (s *TestDockerSuit) startTestContainersWithLabels(containerLabels []map[string]string) ([]*docker.Container, error) {
 	containers := []*docker.Container{}
 
@@ -344,4 +425,25 @@ func (s *TestDockerSuit) TestNewDockerHandlerSkipsUnreachableHosts(c *check.C) {
 	_, ok := clients[goodHostKey]
 	c.Assert(ok, check.Equals, true)
 	c.Assert(h.GetPrimaryDockerHost(), check.Equals, goodHostKey)
+}
+
+func (s *TestDockerSuit) TestShouldUseTLSForHost(c *check.C) {
+	tests := []struct {
+		name      string
+		host      string
+		globalTLS bool
+		expected  bool
+	}{
+		{name: "global TLS for tcp 2376", host: "tcp://secure.example:2376", globalTLS: true, expected: true},
+		{name: "force TLS for tcp 2376 even when global is off", host: "tcp://secure.example:2376", globalTLS: false, expected: true},
+		{name: "disable TLS for tcp 2375", host: "tcp://socket-proxy:2375", globalTLS: true, expected: false},
+		{name: "disable TLS for explicit http", host: "http://socket-proxy:2375", globalTLS: true, expected: false},
+		{name: "force TLS for explicit https", host: "https://secure.example:2376", globalTLS: false, expected: true},
+		{name: "fallback to global value for unknown scheme", host: "ssh://remote-docker", globalTLS: true, expected: true},
+		{name: "fallback to global value for no scheme", host: "remote-docker:2376", globalTLS: false, expected: false},
+	}
+
+	for _, tt := range tests {
+		c.Assert(shouldUseTLSForHost(tt.host, tt.globalTLS), check.Equals, tt.expected, check.Commentf(tt.name))
+	}
 }
