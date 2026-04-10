@@ -171,7 +171,7 @@ When both plain and TLS Docker endpoints are used together, transport is selecte
 - `http://...` is always plain HTTP
 - `https://...` is always TLS
 - `tcp://...:2375` is treated as plain HTTP
-- other `tcp://...` endpoints follow `DOCKER_TLS_VERIFY`
+- `tcp://...:2376` is always TLS
 
 This allows mixed setups like socket proxies on `2375` and remote TLS daemons on `2376` in the same Ofelia instance.
 
