@@ -3,12 +3,12 @@ package core
 import (
 	"archive/tar"
 	"bytes"
-	"fmt"
-	"strings"
-	"sync"
+	"context"
 	"time"
 
-	"github.com/docker/docker/api/types/swarm"
+	"github.com/moby/moby/api/types/swarm"
+	"github.com/moby/moby/client"
+
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/testing"
 	logging "github.com/op/go-logging"
@@ -41,13 +41,60 @@ func (s *SuiteRunServiceJob) SetUpTest(c *C) {
 	s.client, err = docker.NewClient(s.server.URL())
 	c.Assert(err, IsNil)
 
-	s.client.InitSwarm(docker.InitSwarmOptions{})
-
 	s.buildImage(c)
 }
 
+// mockSwarmClient is a test-double for swarmServiceClient that records the
+// service spec it received and returns configurable task results.
+type mockSwarmClient struct {
+	createdSpec      swarm.ServiceSpec
+	tasks            []swarm.Task
+	removeCalled     bool
+	removeCalledWith string
+}
+
+func (m *mockSwarmClient) ServiceCreate(_ context.Context, createOpts client.ServiceCreateOptions) (client.ServiceCreateResult, error) {
+	m.createdSpec = createOpts.Spec
+	return client.ServiceCreateResult{ID: "test-service-id"}, nil
+}
+
+func (m *mockSwarmClient) ServiceInspect(_ context.Context, serviceID string, _ client.ServiceInspectOptions) (client.ServiceInspectResult, error) {
+	return client.ServiceInspectResult{
+		Service: swarm.Service{
+			ID:   serviceID,
+			Meta: swarm.Meta{CreatedAt: time.Now()},
+			Spec: m.createdSpec,
+		},
+	}, nil
+}
+
+func (m *mockSwarmClient) ServiceRemove(_ context.Context, serviceID string, _ client.ServiceRemoveOptions) (client.ServiceRemoveResult, error) {
+	m.removeCalled = true
+	m.removeCalledWith = serviceID
+	return client.ServiceRemoveResult{}, nil
+}
+
+func (m *mockSwarmClient) TaskList(_ context.Context, _ client.TaskListOptions) (client.TaskListResult, error) {
+	if len(m.tasks) == 0 {
+		// Return a successfully completed task so watchContainer exits quickly.
+		return client.TaskListResult{
+			Items: []swarm.Task{
+				{
+					Status: swarm.TaskStatus{
+						State:           swarm.TaskStateComplete,
+						ContainerStatus: &swarm.ContainerStatus{ExitCode: 0},
+					},
+				},
+			},
+		}, nil
+	}
+	return client.TaskListResult{Items: m.tasks}, nil
+}
+
 func (s *SuiteRunServiceJob) TestRun(c *C) {
-	job := &RunServiceJob{Client: s.client}
+	mock := &mockSwarmClient{}
+
+	job := &RunServiceJob{Client: s.client, mobyClient: mock}
 	job.Image = ServiceImageFixture
 	job.Command = `echo -a foo bar`
 	job.User = "foo"
@@ -57,39 +104,36 @@ func (s *SuiteRunServiceJob) TestRun(c *C) {
 
 	e := NewExecution()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	err := job.Run(&Context{Execution: e, Logger: logger})
+	c.Assert(err, IsNil)
 
-	go func() {
-		time.Sleep(time.Millisecond * 600)
+	// Verify the service spec was built correctly.
+	cmd := mock.createdSpec.TaskTemplate.ContainerSpec.Command
+	c.Assert(cmd, DeepEquals, []string{"echo", "-a", "foo", "bar"})
 
-		tasks, err := s.client.ListTasks(docker.ListTasksOptions{})
+	nets := mock.createdSpec.TaskTemplate.Networks
+	c.Assert(nets, HasLen, 1)
+	c.Assert(nets[0].Target, Equals, "foo")
 
-		c.Assert(err, IsNil)
-		fmt.Printf("found tasks %v\n", tasks[0].Spec.ContainerSpec.Command)
+	// Verify the service was deleted when Delete="true".
+	c.Assert(mock.removeCalled, Equals, true)
+	c.Assert(mock.removeCalledWith, Equals, "test-service-id")
+}
 
-		c.Assert(strings.Join(tasks[0].Spec.ContainerSpec.Command, ","), Equals, "echo,-a,foo,bar")
+func (s *SuiteRunServiceJob) TestRunNoDelete(c *C) {
+	mock := &mockSwarmClient{}
 
-		c.Assert(tasks[0].Status.State, Equals, swarm.TaskStateReady)
+	job := &RunServiceJob{Client: s.client, mobyClient: mock}
+	job.Image = ServiceImageFixture
+	job.Delete = "false"
 
-		err = s.client.RemoveService(docker.RemoveServiceOptions{
-			ID: tasks[0].ServiceID,
-		})
-
-		c.Assert(err, IsNil)
-
-		wg.Done()
-
-	}()
+	e := NewExecution()
 
 	err := job.Run(&Context{Execution: e, Logger: logger})
 	c.Assert(err, IsNil)
-	wg.Wait()
 
-	containers, err := s.client.ListTasks(docker.ListTasksOptions{})
-
-	c.Assert(err, IsNil)
-	c.Assert(containers, HasLen, 0)
+	// Verify the service was NOT deleted when Delete="false".
+	c.Assert(mock.removeCalled, Equals, false)
 }
 
 func (s *SuiteRunServiceJob) TestBuildPullImageOptionsBareImage(c *C) {
