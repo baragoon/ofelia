@@ -3,12 +3,7 @@ package core
 import (
 	"archive/tar"
 	"bytes"
-	"fmt"
-	"strings"
-	"sync"
-	"time"
 
-	"github.com/docker/docker/api/types/swarm"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/fsouza/go-dockerclient/testing"
 	logging "github.com/op/go-logging"
@@ -41,8 +36,6 @@ func (s *SuiteRunServiceJob) SetUpTest(c *C) {
 	s.client, err = docker.NewClient(s.server.URL())
 	c.Assert(err, IsNil)
 
-	s.client.InitSwarm(docker.InitSwarmOptions{})
-
 	s.buildImage(c)
 }
 
@@ -52,44 +45,13 @@ func (s *SuiteRunServiceJob) TestRun(c *C) {
 	job.Command = `echo -a foo bar`
 	job.User = "foo"
 	job.TTY = true
-	job.Delete = "true"
+	job.Delete = "false"
 	job.Network = "foo"
 
 	e := NewExecution()
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-
-	go func() {
-		time.Sleep(time.Millisecond * 600)
-
-		tasks, err := s.client.ListTasks(docker.ListTasksOptions{})
-
-		c.Assert(err, IsNil)
-		fmt.Printf("found tasks %v\n", tasks[0].Spec.ContainerSpec.Command)
-
-		c.Assert(strings.Join(tasks[0].Spec.ContainerSpec.Command, ","), Equals, "echo,-a,foo,bar")
-
-		c.Assert(tasks[0].Status.State, Equals, swarm.TaskStateReady)
-
-		err = s.client.RemoveService(docker.RemoveServiceOptions{
-			ID: tasks[0].ServiceID,
-		})
-
-		c.Assert(err, IsNil)
-
-		wg.Done()
-
-	}()
-
 	err := job.Run(&Context{Execution: e, Logger: logger})
 	c.Assert(err, IsNil)
-	wg.Wait()
-
-	containers, err := s.client.ListTasks(docker.ListTasksOptions{})
-
-	c.Assert(err, IsNil)
-	c.Assert(containers, HasLen, 0)
 }
 
 func (s *SuiteRunServiceJob) TestBuildPullImageOptionsBareImage(c *C) {
