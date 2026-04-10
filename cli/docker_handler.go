@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -102,23 +103,24 @@ func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, 
 		return d, resolvedHost, nil
 	}
 
-	       ca, cert, key := c.resolveTLSFiles()
-	       tlsVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
-	       if tlsVerify {
-		       if os.Getenv("OFELIA_ALLOW_INSECURE_TLS") == "1" {
+	ca, cert, key := c.resolveTLSFiles()
+	globalTLSVerify := c.connOpts.TLSVerify || os.Getenv("DOCKER_TLS_VERIFY") != ""
+	tlsVerify := shouldUseTLSForHost(host, globalTLSVerify)
+	if tlsVerify {
+		if os.Getenv("OFELIA_ALLOW_INSECURE_TLS") == "1" {
 				fmt.Fprintf(os.Stderr, "Warning: OFELIA_ALLOW_INSECURE_TLS is set, but TLS verification is always enforced for security. This option is ignored.\n")
-		       }
-		       if ca == "" || cert == "" || key == "" {
-			       return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
-		       }
+		}
+		if ca == "" || cert == "" || key == "" {
+			return nil, "", fmt.Errorf("docker TLS is enabled for host %q but certificate files are incomplete", host)
+		}
 
-		       d, err := docker.NewTLSClient(host, cert, key, ca)
-		       if err != nil {
-			       return nil, "", err
-		       }
+		d, err := docker.NewTLSClient(host, cert, key, ca)
+		if err != nil {
+			return nil, "", err
+		}
 
-		       return d, host, nil
-	       }
+		return d, host, nil
+	}
 
 	d, err := docker.NewClient(host)
 	if err != nil {
@@ -126,6 +128,32 @@ func (c *DockerHandler) buildDockerClient(host string) (*docker.Client, string, 
 	}
 
 	return d, host, nil
+}
+
+func shouldUseTLSForHost(host string, globalTLSVerify bool) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return globalTLSVerify
+	}
+
+	u, err := url.Parse(host)
+	if err != nil || u.Scheme == "" {
+		return globalTLSVerify
+	}
+
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return true
+	case "http", "unix", "npipe":
+		return false
+	case "tcp":
+		// Port 2375 is conventionally plain HTTP Docker API.
+		if u.Port() == "2375" {
+			return false
+		}
+	}
+
+	return globalTLSVerify
 }
 
 func (c *DockerHandler) resolveTLSFiles() (ca, cert, key string) {

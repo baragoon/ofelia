@@ -345,3 +345,23 @@ func (s *TestDockerSuit) TestNewDockerHandlerSkipsUnreachableHosts(c *check.C) {
 	c.Assert(ok, check.Equals, true)
 	c.Assert(h.GetPrimaryDockerHost(), check.Equals, goodHostKey)
 }
+
+func (s *TestDockerSuit) TestShouldUseTLSForHost(c *check.C) {
+	tests := []struct {
+		name      string
+		host      string
+		globalTLS bool
+		expected  bool
+	}{
+		{name: "global TLS for tcp 2376", host: "tcp://secure.example:2376", globalTLS: true, expected: true},
+		{name: "disable TLS for tcp 2375", host: "tcp://socket-proxy:2375", globalTLS: true, expected: false},
+		{name: "disable TLS for explicit http", host: "http://socket-proxy:2375", globalTLS: true, expected: false},
+		{name: "force TLS for explicit https", host: "https://secure.example:2376", globalTLS: false, expected: true},
+		{name: "fallback to global value for unknown scheme", host: "ssh://remote-docker", globalTLS: true, expected: true},
+		{name: "fallback to global value for no scheme", host: "remote-docker:2376", globalTLS: false, expected: false},
+	}
+
+	for _, tt := range tests {
+		c.Assert(shouldUseTLSForHost(tt.host, tt.globalTLS), check.Equals, tt.expected, check.Commentf(tt.name))
+	}
+}
