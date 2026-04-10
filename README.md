@@ -168,6 +168,15 @@ For multi-host setups via environment variables (for example in `docker compose`
 
 Indexed entries are applied in numeric order, named entries are applied in lexical order.
 
+When both plain and TLS Docker endpoints are used together, transport is selected per host:
+
+- `http://...` is always plain HTTP
+- `https://...` is always TLS
+- `tcp://...:2375` is treated as plain HTTP
+- `tcp://...:2376` is always TLS
+
+This allows mixed setups like socket proxies on `2375` and remote TLS daemons on `2376` in the same Ofelia instance.
+
 Additionally, `DOCKER_HOST` also accepts a host list when provided as a separated string (same separators as above). A single `DOCKER_HOST` value keeps the default single-host behavior.
 
 In addition, `ofelia daemon` now supports explicit multi-host flags:
@@ -234,6 +243,31 @@ docker run -it --rm \
     -v /path/to/certs:/certs:ro \
         baragoon/ofelia:latest daemon --config=/path/to/config.ini
 ```
+
+##### Running mixed HTTP (2375) and TLS (2376) hosts in one Ofelia instance
+
+```yaml
+services:
+  ofelia:
+    image: ghcr.io/baragoon/ofelia:latest
+    command: daemon --docker
+    environment:
+      # HTTP socket proxy host (no TLS)
+      DOCKER_HOST_PI1: tcp://socket-proxy:2375
+
+      # TLS remote daemons
+      DOCKER_HOST_PI2: tcp://pi2.example.com:2376
+      DOCKER_HOST_DS: tcp://ds.example.com:2376
+      DOCKER_HOST_NETCUP: tcp://netcup.example.com:2376
+
+      # Global TLS remains enabled for 2376 hosts
+      DOCKER_TLS_VERIFY: 1
+      DOCKER_CERT_PATH: /certs
+    volumes:
+      - /path/to/certs:/certs:ro
+```
+
+In this setup, Ofelia uses plain HTTP for `tcp://socket-proxy:2375` and TLS for the `2376` hosts.
 
 ##### Running against multiple remote TLS daemons (port 2376)
 
