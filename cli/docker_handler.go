@@ -497,10 +497,19 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 
 	var labels = make(map[string]map[string]string)
 	missingHosts := 0
+	failedHosts := 0
+	listErrors := make(map[string]error)
+	if len(c.dockerClients) == 0 {
+		return nil, errNoContainersMatchingFilters
+	}
+
 	for host, dc := range c.dockerClients {
 		conts, err := dc.ListContainers(docker.ListContainersOptions{Filters: filters})
 		if err != nil {
-			return nil, fmt.Errorf("%w: %w", errFailedToListContainers, err)
+			failedHosts++
+			listErrors[host] = err
+			c.logger.Warningf("Failed to list containers on Docker host %q: %v", host, err)
+			continue
 		}
 
 		if len(conts) == 0 {
@@ -529,7 +538,14 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 		}
 	}
 
-	if missingHosts == len(c.dockerClients) {
+	if failedHosts == len(c.dockerClients) {
+		return nil, fmt.Errorf("%w: %v", errFailedToListContainers, listErrors)
+	}
+
+	if missingHosts+failedHosts == len(c.dockerClients) {
+		if failedHosts > 0 {
+			return nil, fmt.Errorf("%w: %v", errFailedToListContainers, listErrors)
+		}
 		return nil, fmt.Errorf("%w: %v", errNoContainersMatchingFilters, filters)
 	}
 
