@@ -8,6 +8,7 @@ require (
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625
+	github.com/containerd/errdefs v1.0.0
 	github.com/fsouza/go-dockerclient v1.13.1
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/gobs/args v0.0.0-20210311043657-b8c0b223be93
@@ -28,7 +29,6 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
