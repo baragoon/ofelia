@@ -329,8 +329,7 @@ func (s *TestDockerSuit) TestGetDockerLabelsNoClientsConfigured(c *check.C) {
 
 	labels, err := h.GetDockerLabels()
 	c.Assert(labels, check.IsNil)
-	c.Assert(errors.Is(err, errFailedToListContainers), check.Equals, true)
-	c.Assert(err.Error(), check.Matches, ".*no docker clients configured.*")
+	c.Assert(errors.Is(err, errNoContainersMatchingFilters), check.Equals, true)
 }
 
 func (s *TestDockerSuit) startTestContainersWithLabels(containerLabels []map[string]string) ([]*docker.Container, error) {

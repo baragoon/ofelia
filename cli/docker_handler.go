@@ -500,13 +500,7 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 	failedHosts := 0
 	listErrors := make(map[string]error)
 	if len(c.dockerClients) == 0 {
-		return nil, fmt.Errorf(
-			"%w: no docker clients configured (failedHosts=%d missingHosts=%d listErrors=%v)",
-			errFailedToListContainers,
-			failedHosts,
-			missingHosts,
-			listErrors,
-		)
+		return nil, errNoContainersMatchingFilters
 	}
 
 	for host, dc := range c.dockerClients {
@@ -549,6 +543,9 @@ func (c *DockerHandler) GetDockerLabels() (map[string]map[string]string, error) 
 	}
 
 	if missingHosts+failedHosts == len(c.dockerClients) {
+		if failedHosts > 0 {
+			return nil, fmt.Errorf("%w: %v", errFailedToListContainers, listErrors)
+		}
 		return nil, fmt.Errorf("%w: %v", errNoContainersMatchingFilters, filters)
 	}
 
