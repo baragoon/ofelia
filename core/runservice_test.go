@@ -53,8 +53,8 @@ type mockSwarmClient struct {
 	removeCalledWith string
 }
 
-func (m *mockSwarmClient) ServiceCreate(_ context.Context, options client.ServiceCreateOptions) (client.ServiceCreateResult, error) {
-	m.createdSpec = options.Spec
+func (m *mockSwarmClient) ServiceCreate(_ context.Context, createOpts client.ServiceCreateOptions) (client.ServiceCreateResult, error) {
+	m.createdSpec = createOpts.Spec
 	return client.ServiceCreateResult{ID: "test-service-id"}, nil
 }
 

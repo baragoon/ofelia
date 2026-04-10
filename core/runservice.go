@@ -224,7 +224,7 @@ func (j *RunServiceJob) watchContainer(ctx *Context, runCtx context.Context, svc
 				err = ErrMaxTimeRunning
 				return
 			case <-ticker.C:
-				if svc.CreatedAt.After(time.Now().Add(maxProcessDuration)) {
+				if time.Now().After(svc.CreatedAt.Add(maxProcessDuration)) {
 					err = ErrMaxTimeRunning
 					return
 				}
