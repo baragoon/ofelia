@@ -3,6 +3,8 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 
@@ -249,6 +251,86 @@ func (s *TestDockerSuit) TestExecJobNameIncludesContainerForRemoteHost(c *check.
 	for name := range conf.ExecJobs {
 		c.Assert(strings.Contains(name, "::ofelia-test0::datecron"), check.Equals, true)
 	}
+}
+
+func (s *TestDockerSuit) TestGetDockerLabelsSkipsFailedHosts(c *check.C) {
+	containersToStartWithLabels := []map[string]string{
+		{
+			requiredLabel: "true",
+			labelPrefix + "." + jobExec + ".datecron.schedule": "* * * * *",
+			labelPrefix + "." + jobExec + ".datecron.command":  "date",
+		},
+	}
+
+	_, err := s.startTestContainersWithLabels(containersToStartWithLabels)
+	c.Assert(err, check.IsNil)
+
+	forbiddenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+	}))
+	defer forbiddenServer.Close()
+
+	forbiddenClient, err := docker.NewClient(forbiddenServer.URL)
+	c.Assert(err, check.IsNil)
+
+	h := &DockerHandler{
+		dockerClients: map[string]*docker.Client{
+			"bad-host":  forbiddenClient,
+			"good-host": s.client,
+		},
+		logger: &TestLogger{},
+	}
+
+	labels, err := h.GetDockerLabels()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(labels) > 0, check.Equals, true)
+
+	foundGoodHost := false
+	for containerRef := range labels {
+		host, _ := splitContainerRef(containerRef)
+		if host == "good-host" {
+			foundGoodHost = true
+			break
+		}
+	}
+	c.Assert(foundGoodHost, check.Equals, true)
+}
+
+func (s *TestDockerSuit) TestGetDockerLabelsAllHostsFailed(c *check.C) {
+	forbiddenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"message":"Forbidden"}`))
+	}))
+	defer forbiddenServer.Close()
+
+	forbiddenClient, err := docker.NewClient(forbiddenServer.URL)
+	c.Assert(err, check.IsNil)
+
+	h := &DockerHandler{
+		dockerClients: map[string]*docker.Client{
+			"bad-host": forbiddenClient,
+		},
+		logger: &TestLogger{},
+	}
+
+	labels, err := h.GetDockerLabels()
+	c.Assert(labels, check.IsNil)
+	c.Assert(errors.Is(err, errFailedToListContainers), check.Equals, true)
+}
+
+func (s *TestDockerSuit) TestGetDockerLabelsNoClientsConfigured(c *check.C) {
+	h := &DockerHandler{
+		dockerClients: map[string]*docker.Client{},
+		logger:        &TestLogger{},
+	}
+
+	labels, err := h.GetDockerLabels()
+	c.Assert(labels, check.IsNil)
+	c.Assert(errors.Is(err, errFailedToListContainers), check.Equals, true)
+	c.Assert(err.Error(), check.Matches, ".*no docker clients configured.*")
 }
 
 func (s *TestDockerSuit) startTestContainersWithLabels(containerLabels []map[string]string) ([]*docker.Container, error) {
