@@ -3,6 +3,9 @@ name: Manual Multi-Host TLS Integration
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   multi_host_tls_labels:
     name: Multi-host TLS labels

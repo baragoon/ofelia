@@ -3,6 +3,9 @@ name: Manual Multi-Host Pinned Integration
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   multi_host_pinned_jobs:
     name: Multi-host pinned jobs
