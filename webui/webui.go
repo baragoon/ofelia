@@ -296,8 +296,8 @@ var hostJobsTemplate = template.Must(template.New("host-jobs").Funcs(templateFun
     .back{display:inline-flex;align-items:center;gap:.3rem;text-decoration:none;color:var(--ok);font-size:.82rem;margin-bottom:.9rem}
     .back:hover{color:var(--fail)}
     .host-title{font-size:1rem;font-weight:600;margin-bottom:.7rem;color:var(--fg)}
-    .job-list{display:flex;flex-direction:column;gap:.45rem}
-    .job-row{background:var(--card-bg);border:1px solid var(--card-border);border-left:3px solid #9ca3af;border-radius:6px;padding:.75rem 1rem;display:grid;grid-template-columns:auto 1fr auto;gap:.8rem;align-items:center}
+    .job-list{display:grid;grid-template-columns:auto 1fr auto;column-gap:.8rem;row-gap:.45rem}
+    .job-row{grid-column:1/-1;background:var(--card-bg);border:1px solid var(--card-border);border-left:3px solid #9ca3af;border-radius:6px;padding:.75rem 1rem;display:grid;grid-template-columns:subgrid;align-items:center}
     .job-row.last-ok{border-left-color:var(--ok)}.job-row.last-fail{border-left-color:var(--fail)}.job-row.is-running{border-left-color:var(--running)}
     .job-schedule{font-family:monospace;font-size:.76rem;background:var(--bg);border:1px solid var(--card-border);border-radius:4px;padding:.22rem .55rem;white-space:nowrap;color:var(--fg);align-self:start;margin-top:.1rem}
     .job-body{min-width:0}.job-name{font-weight:600;font-size:.9rem;margin-bottom:.15rem;word-break:break-word}
