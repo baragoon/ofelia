@@ -238,14 +238,15 @@ var hostsTemplate = template.Must(template.New("hosts").Funcs(templateFuncMap).P
     .brand-dot{color:var(--ok);font-size:1.1rem}.brand{font-size:1rem;font-weight:700;letter-spacing:-.2px}
     .stats-bar{margin-left:auto;display:flex;gap:1.25rem;font-size:.8rem;color:var(--header-fg);align-items:center;opacity:.7}
     .stats-bar b{color:var(--header-fg)}.stat-running b{color:var(--ok)}
-    main{max-width:880px;margin:1.5rem auto;padding:0 1rem 3rem}
+	main{max-width:1100px;margin:1.5rem auto;padding:0 1rem 3rem}
     .section-label{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin-bottom:.75rem}
-    .host-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:.8rem}
-    .host-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:1.2rem 1.3rem 1.25rem;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s;display:block}
+	.host-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:.8rem;justify-content:start}
+	.host-card{background:var(--card-bg);border:1px solid var(--card-border);border-radius:8px;padding:1.2rem 1.3rem 1.25rem;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s;display:block;min-height:92px}
     .host-card:hover{border-color:var(--ok);box-shadow:0 2px 10px rgba(63,185,80,.12)}
-    .card-name{font-size:.88rem;font-weight:600;margin-bottom:.3rem;word-break:break-all;display:flex;align-items:center;gap:.35rem}
+		.card-name{font-size:.88rem;font-weight:600;margin-bottom:.3rem;display:flex;align-items:center;gap:.35rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .status-dot{display:inline-block;width:7px;height:7px;background:var(--ok);border-radius:50%;flex-shrink:0}
     .card-info{font-size:.78rem;color:#6b7280}
+		@media (max-width:720px){.host-grid{grid-template-columns:1fr}.host-card{min-height:auto}}
   </style>
 </head>
 <body>
